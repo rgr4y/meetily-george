@@ -75,6 +75,7 @@ class DatabaseManager:
                     summary TEXT,
                     action_items TEXT,
                     key_points TEXT,
+                    decisions TEXT,
                     audio_start_time REAL,
                     audio_end_time REAL,
                     duration REAL,
@@ -95,7 +96,11 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE transcripts ADD COLUMN duration REAL")
             except sqlite3.OperationalError:
                 pass  # Column already exists
-            
+            try:
+                cursor.execute("ALTER TABLE transcripts ADD COLUMN decisions TEXT")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
             # Create summary_processes table (keeping existing functionality)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS summary_processes (
@@ -388,6 +393,7 @@ class DatabaseManager:
 
     async def save_meeting_transcript(self, meeting_id: str, transcript: str, timestamp: str,
                                      summary: str = "", action_items: str = "", key_points: str = "",
+                                     decisions: str = "",
                                      audio_start_time: float = None, audio_end_time: float = None, duration: float = None):
         """Save a transcript for a meeting with optional recording-relative timestamps"""
         try:
@@ -398,10 +404,10 @@ class DatabaseManager:
                 cursor.execute("""
                     INSERT INTO transcripts (
                         meeting_id, transcript, timestamp, summary, action_items, key_points,
-                        audio_start_time, audio_end_time, duration
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        decisions, audio_start_time, audio_end_time, duration
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (meeting_id, transcript, timestamp, summary, action_items, key_points,
-                      audio_start_time, audio_end_time, duration))
+                      decisions, audio_start_time, audio_end_time, duration))
 
                 conn.commit()
                 return True
