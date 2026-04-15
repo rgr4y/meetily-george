@@ -1,4 +1,4 @@
-use crate::summary::llm_client::{generate_summary, LLMProvider};
+use crate::summary::llm_client::{generate_summary, generate_structured_summary, LLMProvider, StructuredResponseFormat};
 use crate::summary::templates;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -6,18 +6,32 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-// Compile regex once and reuse (significant performance improvement for repeated calls)
+// Compile regex patterns once and reuse (significant performance improvement for repeated calls)
 static THINKING_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap()
 });
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+static CODE_FENCE_START_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^```(?:json)?\s*").unwrap()
+});
+
+static CODE_FENCE_END_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\s*```$").unwrap()
+});
+
+/// Structured summary output from LLM
+/// Contains discrete fields extracted from the meeting transcript
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StructuredSummary {
+    /// 2-3 sentence overview of what was discussed
     pub summary: String,
+    /// Key points from the meeting
     pub key_points: Vec<String>,
+    /// Action items with format "Person: task (timing)"
     pub action_items: Vec<String>,
+    /// Decisions made during the meeting
     pub decisions: Vec<String>,
 }
 
@@ -143,6 +157,208 @@ pub fn extract_meeting_name_from_markdown(markdown: &str) -> Option<String> {
         .find(|line| line.starts_with("# "))
         .map(|line| line.trim_start_matches("# ").trim().to_string())
 }
+
+/// Cleans LLM response for JSON parsing
+///
+/// Handles various LLM output quirks:
+/// 1. Strips think tags (Qwen3 reasoning mode)
+/// 2. Strips leading/trailing whitespace
+/// 3. Strips markdown code fences
+/// 4. Strips prose preamble before JSON starts
+///
+/// # Arguments
+/// * `response` - Raw LLM response text
+///
+/// # Returns
+/// Cleaned JSON string ready for parsing
+pub fn clean_llm_response(response: &str) -> String {
+    // 1. Strip think/thinking tags
+    let without_thinking = THINKING_TAG_REGEX.replace_all(response, "");
+
+    // 2. Strip leading/trailing whitespace
+    let trimmed = without_thinking.trim();
+
+    // 3. Strip markdown code fences
+    let without_fences = CODE_FENCE_START_REGEX.replace(trimmed, "");
+    let without_fences = CODE_FENCE_END_REGEX.replace(&without_fences, "");
+    let trimmed = without_fences.trim();
+
+    // 4. Strip prose preamble: skip to first '{' if content doesn't start with it
+    if let Some(pos) = trimmed.find('{') {
+        if pos > 0 {
+            // There's prose before the JSON
+            return trimmed[pos..].to_string();
+        }
+    }
+
+    trimmed.to_string()
+}
+
+/// Best-effort regex extraction of JSON fields when serde_json parsing fails
+///
+/// Extracts summary, key_points, action_items, and decisions using regex patterns.
+/// Handles escaped quotes and nested brackets where possible.
+///
+/// # Arguments
+/// * `text` - Raw LLM response text
+///
+/// # Returns
+/// Partially extracted StructuredSummary (missing fields will be empty)
+pub fn best_effort_parse(text: &str) -> StructuredSummary {
+    let mut result = StructuredSummary::default();
+
+    // Extract summary field (string value)
+    if let Ok(regex) = Regex::new(r#""summary"\s*:\s*"((?:[^"\\]|\\.)*)""#) {
+        if let Some(caps) = regex.captures(text) {
+            if let Some(m) = caps.get(1) {
+                result.summary = unescape_json_string(m.as_str());
+            }
+        }
+    }
+
+    // Extract array fields using a helper function
+    result.key_points = extract_json_string_array(text, "key_points");
+    result.action_items = extract_json_string_array(text, "action_items");
+    result.decisions = extract_json_string_array(text, "decisions");
+
+    result
+}
+
+/// Helper function to extract a JSON array of strings
+fn extract_json_string_array(text: &str, field_name: &str) -> Vec<String> {
+    let mut items = Vec::new();
+
+    // Pattern to match "field_name": [ "item1", "item2", ... ]
+    let pattern = format!(
+        r#""{}"\s*:\s*\[((?:[^\[\]]|\[(?:[^\[\]])*\])*)\]"#,
+        field_name
+    );
+
+    if let Ok(regex) = Regex::new(&pattern) {
+        if let Some(caps) = regex.captures(text) {
+            if let Some(m) = caps.get(1) {
+                let array_content = m.as_str();
+                // Extract individual strings from the array
+                if let Ok(item_regex) = Regex::new(r#""((?:[^"\\]|\\.)*)""#) {
+                    for item_cap in item_regex.captures_iter(array_content) {
+                        if let Some(item_match) = item_cap.get(1) {
+                            items.push(unescape_json_string(item_match.as_str()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    items
+}
+
+/// Unescape JSON string escape sequences
+fn unescape_json_string(s: &str) -> String {
+    s.replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace("\\\"", "\"")
+        .replace("\\\\", "\\")
+}
+
+/// Parse LLM response into StructuredSummary with fallback strategies
+///
+/// Parsing strategy:
+/// 1. Clean response with clean_llm_response()
+/// 2. Try direct serde_json parsing
+/// 3. If fails, try best_effort_parse() with regex extraction
+/// 4. If still fails, return raw text as summary with empty other fields
+///
+/// # Arguments
+/// * `response` - Raw LLM response text
+///
+/// # Returns
+/// StructuredSummary with as much data as could be extracted
+pub fn parse_structured_summary(response: &str) -> StructuredSummary {
+    let cleaned = clean_llm_response(response);
+
+    // Try direct JSON parsing
+    match serde_json::from_str::<StructuredSummary>(&cleaned) {
+        Ok(summary) => {
+            info!("Successfully parsed structured summary from JSON");
+            summary
+        }
+        Err(e) => {
+            warn!("Structured JSON parse failed, trying best-effort extraction: {}", e);
+
+            // Try best-effort regex extraction
+            let best_effort = best_effort_parse(&cleaned);
+
+            // Check if we got any data
+            if !best_effort.summary.is_empty()
+                || !best_effort.key_points.is_empty()
+                || !best_effort.action_items.is_empty()
+                || !best_effort.decisions.is_empty()
+            {
+                info!("Best-effort extraction succeeded with partial data");
+                best_effort
+            } else {
+                // Fall back to raw text as summary
+                warn!("Best-effort extraction yielded no data, using raw response as summary");
+                StructuredSummary {
+                    summary: response.to_string(),
+                    key_points: vec![],
+                    action_items: vec![],
+                    decisions: vec![],
+                }
+            }
+        }
+    }
+}
+
+/// JSON schema for structured summary response (OpenAI response_format)
+pub fn get_structured_summary_json_schema() -> serde_json::Value {
+    serde_json::json!({
+        "name": "meeting_summary",
+        "strict": true,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "2-3 sentence overview of what was discussed"
+                },
+                "key_points": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Key points from the meeting"
+                },
+                "action_items": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Action items with format 'Person: task (timing)'"
+                },
+                "decisions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Decisions made during the meeting"
+                }
+            },
+            "required": ["summary", "key_points", "action_items", "decisions"],
+            "additionalProperties": false
+        }
+    })
+}
+
+/// Generate JSON format instruction block for system prompt
+pub fn get_json_format_instruction() -> String {
+    r#"<<<JSON_FORMAT>>>
+Return ONLY valid JSON with this exact structure (no markdown fences, no commentary):
+{
+  "summary": "2-3 sentence overview of what was discussed",
+  "key_points": ["point 1", "point 2"],
+  "action_items": ["Person: task (timing)"],
+  "decisions": ["decision 1"]
+}
+<<<END_JSON_FORMAT>>>"#.to_string()
+}
+
 
 /// Generates a complete meeting summary with conditional chunking strategy
 ///
