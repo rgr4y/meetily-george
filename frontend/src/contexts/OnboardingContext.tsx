@@ -95,7 +95,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   });
   const [permissionsSkipped, setPermissionsSkipped] = useState(false);
 
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load status on mount and initialize database
   useEffect(() => {
@@ -402,7 +402,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       // Clear any pending auto-saves
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = undefined;
+        saveTimeoutRef.current = null;
       }
 
       // Onboarding always uses builtin-ai with selected model
