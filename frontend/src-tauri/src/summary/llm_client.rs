@@ -25,6 +25,40 @@ pub struct ChatRequest {
     pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<StructuredResponseFormat>,
+}
+
+/// Structured response format for OpenAI-compatible APIs
+/// Used to request JSON output with a specific schema
+#[derive(Debug, Clone, Serialize)]
+pub struct StructuredResponseFormat {
+    #[serde(rename = "type")]
+    pub format_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_schema: Option<serde_json::Value>,
+}
+
+impl StructuredResponseFormat {
+    /// Create a new JSON schema response format
+    pub fn json_schema(name: &str, schema: serde_json::Value, strict: bool) -> Self {
+        Self {
+            format_type: "json_schema".to_string(),
+            json_schema: Some(serde_json::json!({
+                "name": name,
+                "strict": strict,
+                "schema": schema
+            })),
+        }
+    }
+
+    /// Create a simple JSON object response format (for providers that don't support full schema)
+    pub fn json_object() -> Self {
+        Self {
+            format_type: "json_object".to_string(),
+            json_schema: None,
+        }
+    }
 }
 
 // Generic structure for OpenAI-compatible API chat responses
@@ -342,5 +376,282 @@ fn provider_name(provider: &LLMProvider) -> &str {
         LLMProvider::BuiltInAI => "Built-in AI",
         LLMProvider::OpenRouter => "OpenRouter",
         LLMProvider::CustomOpenAI => "Custom OpenAI",
+    }
+}
+
+/// Check if a provider supports structured JSON output via response_format
+fn supports_structured_output(provider: &LLMProvider) -> bool {
+    matches!(
+        provider,
+        LLMProvider::OpenAI | LLMProvider::Groq | LLMProvider::OpenRouter | LLMProvider::CustomOpenAI
+    )
+}
+
+/// Generates a structured summary using JSON response format when supported
+///
+/// This is similar to generate_summary but uses response_format to request
+/// structured JSON output from providers that support it (OpenAI, Groq, OpenRouter, CustomOpenAI).
+///
+/// # Arguments
+/// * `client` - Reqwest HTTP client (reused for performance)
+/// * `provider` - The LLM provider to use
+/// * `model_name` - The specific model to use
+/// * `api_key` - API key for the provider
+/// * `system_prompt` - System instructions for the LLM (should include JSON format instructions)
+/// * `user_prompt` - User query/content to process
+/// * `ollama_endpoint` - Optional custom Ollama endpoint
+/// * `custom_openai_endpoint` - Optional custom OpenAI-compatible endpoint
+/// * `max_tokens` - Optional max tokens
+/// * `temperature` - Optional temperature
+/// * `top_p` - Optional top_p
+/// * `app_data_dir` - Optional app data directory (for BuiltInAI provider)
+/// * `cancellation_token` - Optional token to cancel the request
+/// * `json_schema` - Optional JSON schema for structured output
+///
+/// # Returns
+/// The generated JSON response text or an error message
+pub async fn generate_structured_summary(
+    client: &Client,
+    provider: &LLMProvider,
+    model_name: &str,
+    api_key: &str,
+    system_prompt: &str,
+    user_prompt: &str,
+    ollama_endpoint: Option<&str>,
+    custom_openai_endpoint: Option<&str>,
+    max_tokens: Option<u32>,
+    temperature: Option<f32>,
+    top_p: Option<f32>,
+    app_data_dir: Option<&PathBuf>,
+    cancellation_token: Option<&CancellationToken>,
+    json_schema: Option<serde_json::Value>,
+) -> Result<String, String> {
+    // Check if cancelled before starting
+    if let Some(token) = cancellation_token {
+        if token.is_cancelled() {
+            return Err("Summary generation was cancelled".to_string());
+        }
+    }
+
+    // Handle BuiltInAI provider separately (uses local sidecar, no HTTP API)
+    if provider == &LLMProvider::BuiltInAI {
+        let app_data_dir = app_data_dir
+            .ok_or_else(|| "app_data_dir is required for BuiltInAI provider".to_string())?;
+
+        return crate::summary::summary_engine::generate_with_builtin(
+            app_data_dir,
+            model_name,
+            system_prompt,
+            user_prompt,
+            cancellation_token,
+        )
+        .await
+        .map_err(|e| e.to_string());
+    }
+
+    let (api_url, mut headers) = match provider {
+        LLMProvider::OpenAI => (
+            "https://api.openai.com/v1/chat/completions".to_string(),
+            header::HeaderMap::new(),
+        ),
+        LLMProvider::Groq => (
+            "https://api.groq.com/openai/v1/chat/completions".to_string(),
+            header::HeaderMap::new(),
+        ),
+        LLMProvider::OpenRouter => (
+            "https://openrouter.ai/api/v1/chat/completions".to_string(),
+            header::HeaderMap::new(),
+        ),
+        LLMProvider::Ollama => {
+            let host = ollama_endpoint
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "http://localhost:11434".to_string());
+            (
+                format!("{}/v1/chat/completions", host),
+                header::HeaderMap::new(),
+            )
+        }
+        LLMProvider::CustomOpenAI => {
+            let endpoint = custom_openai_endpoint
+                .ok_or_else(|| "Custom OpenAI endpoint not configured".to_string())?;
+            (
+                format!("{}/chat/completions", endpoint.trim_end_matches('/')),
+                header::HeaderMap::new(),
+            )
+        }
+        LLMProvider::Claude => {
+            let mut header_map = header::HeaderMap::new();
+            header_map.insert(
+                "x-api-key",
+                api_key
+                    .parse()
+                    .map_err(|_| "Invalid API key format".to_string())?,
+            );
+            header_map.insert(
+                "anthropic-version",
+                "2023-06-01"
+                    .parse()
+                    .map_err(|_| "Invalid anthropic version".to_string())?,
+            );
+            ("https://api.anthropic.com/v1/messages".to_string(), header_map)
+        }
+        LLMProvider::BuiltInAI => {
+            // This case is handled earlier with early returns
+            unreachable!("BuiltInAI is handled before this match statement")
+        }
+    };
+
+    // Add authorization header for non-Claude providers
+    if provider != &LLMProvider::Claude {
+        headers.insert(
+            header::AUTHORIZATION,
+            format!("Bearer {}", api_key)
+                .parse()
+                .map_err(|_| "Invalid authorization header".to_string())?,
+        );
+    }
+    headers.insert(
+        header::CONTENT_TYPE,
+        "application/json"
+            .parse()
+            .map_err(|_| "Invalid content type".to_string())?,
+    );
+
+    // Build response_format if provider supports it and schema is provided
+    let response_format = if supports_structured_output(provider) && json_schema.is_some() {
+        Some(StructuredResponseFormat::json_schema(
+            "meeting_summary",
+            json_schema.unwrap(),
+            true,
+        ))
+    } else if supports_structured_output(provider) {
+        // Fallback to json_object mode for structured output
+        Some(StructuredResponseFormat::json_object())
+    } else {
+        None
+    };
+
+    // Build request body based on provider
+    let request_body = if provider != &LLMProvider::Claude {
+        // For CustomOpenAI, apply optional parameters if provided
+        let (max_tokens_val, temperature_val, top_p_val) =
+            if provider == &LLMProvider::CustomOpenAI {
+                (max_tokens, temperature, top_p)
+            } else {
+                (None, None, None)
+            };
+
+        serde_json::json!(ChatRequest {
+            model: model_name.to_string(),
+            messages: vec![
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: system_prompt.to_string(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: user_prompt.to_string(),
+                }
+            ],
+            max_tokens: max_tokens_val,
+            temperature: temperature_val,
+            top_p: top_p_val,
+            response_format,
+        })
+    } else {
+        serde_json::json!(ClaudeRequest {
+            system: system_prompt.to_string(),
+            model: model_name.to_string(),
+            max_tokens: 2048,
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: user_prompt.to_string(),
+            }]
+        })
+    };
+
+    info!(
+        "🐞 Structured LLM Request to {}: model={}",
+        provider_name(provider),
+        model_name
+    );
+
+    // Send request with timeout and cancellation support
+    let request_future = client
+        .post(api_url)
+        .headers(headers)
+        .json(&request_body)
+        .timeout(REQUEST_TIMEOUT_DURATION)
+        .send();
+
+    // Use tokio::select to race between cancellation and request completion
+    let response = if let Some(token) = cancellation_token {
+        tokio::select! {
+            result = request_future => {
+                result.map_err(|e| {
+                    if e.is_timeout() {
+                        format!("LLM request timed out after 60 seconds")
+                    } else {
+                        format!("Failed to send request to LLM: {}", e)
+                    }
+                })?
+            }
+            _ = token.cancelled() => {
+                return Err("Summary generation was cancelled".to_string());
+            }
+        }
+    } else {
+        request_future.await.map_err(|e| {
+            if e.is_timeout() {
+                format!("LLM request timed out after 60 seconds")
+            } else {
+                format!("Failed to send request to LLM: {}", e)
+            }
+        })?
+    };
+
+    if !response.status().is_success() {
+        let error_body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("LLM API request failed: {}", error_body));
+    }
+
+    // Parse response based on provider
+    if provider == &LLMProvider::Claude {
+        let chat_response = response
+            .json::<ClaudeChatResponse>()
+            .await
+            .map_err(|e| format!("Failed to parse LLM response: {}", e))?;
+
+        info!("🐞 Structured LLM Response received from Claude");
+
+        let content = chat_response
+            .content
+            .get(0)
+            .ok_or("No content in LLM response")?
+            .text
+            .trim();
+        Ok(content.to_string())
+    } else {
+        let chat_response = response
+            .json::<ChatResponse>()
+            .await
+            .map_err(|e| format!("Failed to parse LLM response: {}", e))?;
+
+        info!(
+            "🐞 Structured LLM Response received from {}",
+            provider_name(provider)
+        );
+
+        let content = chat_response
+            .choices
+            .get(0)
+            .ok_or("No content in LLM response")?
+            .message
+            .content
+            .trim();
+        Ok(content.to_string())
     }
 }

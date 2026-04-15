@@ -53,9 +53,11 @@ pub use template_commands::{
 };
 
 // Re-export commonly used items
-pub use llm_client::LLMProvider;
+pub use llm_client::{LLMProvider, StructuredResponseFormat};
 pub use processor::{
-    chunk_text, clean_llm_markdown_output, extract_meeting_name_from_markdown,
-    generate_meeting_summary, rough_token_count,
+    best_effort_parse, chunk_text, clean_llm_markdown_output, clean_llm_response,
+    extract_meeting_name_from_markdown, generate_meeting_summary,
+    get_json_format_instruction, get_structured_summary_json_schema, parse_structured_summary,
+    rough_token_count, StructuredSummary,
 };
 pub use service::SummaryService;
