@@ -1,8 +1,11 @@
 use crate::database::repositories::{
     meeting::MeetingsRepository, setting::SettingsRepository, summary::SummaryProcessesRepository,
+    transcript::TranscriptsRepository,
 };
 use crate::summary::llm_client::LLMProvider;
-use crate::summary::processor::{extract_meeting_name_from_markdown, generate_meeting_summary};
+use crate::summary::processor::{
+    extract_meeting_name_from_markdown, generate_meeting_summary, StructuredSummary,
+};
 use crate::ollama::metadata::ModelMetadataCache;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -246,7 +249,7 @@ impl SummaryService {
         Self::cleanup_cancellation_token(&meeting_id);
 
         match result {
-            Ok((mut final_markdown, num_chunks)) => {
+            Ok((mut final_markdown, structured_summary, num_chunks)) => {
                 if num_chunks == 0 && final_markdown.is_empty() {
                     Self::update_process_failed(
                         &pool,
@@ -299,6 +302,29 @@ impl SummaryService {
                 let result_json = serde_json::json!({
                     "markdown": final_markdown,
                 });
+
+                let key_points_json =
+                    serde_json::to_string(&structured_summary.key_points).unwrap_or_else(|_| "[]".to_string());
+                let action_items_json =
+                    serde_json::to_string(&structured_summary.action_items).unwrap_or_else(|_| "[]".to_string());
+                let decisions_json =
+                    serde_json::to_string(&structured_summary.decisions).unwrap_or_else(|_| "[]".to_string());
+
+                if let Err(e) = Self::save_structured_summary_fields(
+                    &pool,
+                    &meeting_id,
+                    &structured_summary,
+                    &key_points_json,
+                    &action_items_json,
+                    &decisions_json,
+                )
+                .await
+                {
+                    error!(
+                        "Failed to save structured summary fields for {}: {}",
+                        meeting_id, e
+                    );
+                }
 
                 // Update database with completed status
                 if let Err(e) = SummaryProcessesRepository::update_process_completed(
@@ -354,5 +380,24 @@ impl SummaryService {
                 meeting_id, e
             );
         }
+    }
+
+    async fn save_structured_summary_fields(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        structured_summary: &StructuredSummary,
+        key_points_json: &str,
+        action_items_json: &str,
+        decisions_json: &str,
+    ) -> Result<(), sqlx::Error> {
+        TranscriptsRepository::save_structured_summary(
+            pool,
+            meeting_id,
+            &structured_summary.summary,
+            key_points_json,
+            action_items_json,
+            decisions_json,
+        )
+        .await
     }
 }

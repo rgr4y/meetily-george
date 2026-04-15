@@ -1,6 +1,7 @@
 use crate::database::repositories::{
     meeting::MeetingsRepository, summary::SummaryProcessesRepository,
     transcript_chunk::TranscriptChunksRepository,
+    transcript::TranscriptsRepository,
 };
 use crate::state::AppState;
 use crate::summary::service::SummaryService;
@@ -24,6 +25,14 @@ pub struct SummaryResponse {
 pub struct ProcessTranscriptResponse {
     pub message: String,
     pub process_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StructuredSummaryResponse {
+    pub summary: String,
+    pub key_points: Vec<String>,
+    pub action_items: Vec<String>,
+    pub decisions: Vec<String>,
 }
 
 /// Saves a meeting summary (Native SQLx implementation)
@@ -274,4 +283,49 @@ pub async fn api_cancel_summary<R: Runtime>(
             "meeting_id": meeting_id,
         }))
     }
+}
+
+#[tauri::command]
+pub async fn api_get_structured_summary<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<StructuredSummaryResponse, String> {
+    let pool = state.db_manager.pool();
+
+    let row = TranscriptsRepository::get_structured_summary(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to fetch structured summary: {}", e))?;
+
+    let Some(row) = row else {
+        return Ok(StructuredSummaryResponse {
+            summary: String::new(),
+            key_points: Vec::new(),
+            action_items: Vec::new(),
+            decisions: Vec::new(),
+        });
+    };
+
+    let key_points = row
+        .key_points
+        .as_deref()
+        .and_then(|v| serde_json::from_str::<Vec<String>>(v).ok())
+        .unwrap_or_default();
+    let action_items = row
+        .action_items
+        .as_deref()
+        .and_then(|v| serde_json::from_str::<Vec<String>>(v).ok())
+        .unwrap_or_default();
+    let decisions = row
+        .decisions
+        .as_deref()
+        .and_then(|v| serde_json::from_str::<Vec<String>>(v).ok())
+        .unwrap_or_default();
+
+    Ok(StructuredSummaryResponse {
+        summary: row.summary.unwrap_or_default(),
+        key_points,
+        action_items,
+        decisions,
+    })
 }

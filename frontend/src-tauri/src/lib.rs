@@ -669,6 +669,7 @@ pub fn run() {
             // Summary commands
             summary::api_process_transcript,
             summary::api_get_summary,
+            summary::api_get_structured_summary,
             summary::api_save_meeting_summary,
             summary::api_cancel_summary,
             // Template commands

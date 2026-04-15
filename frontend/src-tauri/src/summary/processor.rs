@@ -3,6 +3,7 @@ use crate::summary::templates;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -11,6 +12,14 @@ use tracing::{error, info};
 static THINKING_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap()
 });
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructuredSummary {
+    pub summary: String,
+    pub key_points: Vec<String>,
+    pub action_items: Vec<String>,
+    pub decisions: Vec<String>,
+}
 
 /// Rough token count estimation using character count
 pub fn rough_token_count(s: &str) -> usize {
@@ -172,7 +181,7 @@ pub async fn generate_meeting_summary(
     top_p: Option<f32>,
     app_data_dir: Option<&PathBuf>,
     cancellation_token: Option<&CancellationToken>,
-) -> Result<(String, i64), String> {
+) -> Result<(String, StructuredSummary, i64), String> {
     // Check cancellation at the start
     if let Some(token) = cancellation_token {
         if token.is_cancelled() {
@@ -379,5 +388,14 @@ pub async fn generate_meeting_summary(
     let final_markdown = clean_llm_markdown_output(&raw_markdown);
 
     info!("Summary generation completed successfully");
-    Ok((final_markdown, successful_chunk_count))
+    // Task 1.1 provides full structured parsing in another branch.
+    // Local fallback keeps compatibility for 1.3 wiring until branches merge.
+    let structured_summary = StructuredSummary {
+        summary: final_markdown.clone(),
+        key_points: Vec::new(),
+        action_items: Vec::new(),
+        decisions: Vec::new(),
+    };
+
+    Ok((final_markdown, structured_summary, successful_chunk_count))
 }

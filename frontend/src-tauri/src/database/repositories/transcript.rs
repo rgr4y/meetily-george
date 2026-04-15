@@ -6,6 +6,14 @@ use uuid::Uuid;
 
 pub struct TranscriptsRepository;
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StructuredSummaryRow {
+    pub summary: Option<String>,
+    pub key_points: Option<String>,
+    pub action_items: Option<String>,
+    pub decisions: Option<String>,
+}
+
 impl TranscriptsRepository {
     /// Saves a new meeting and its associated transcript segments.
     /// This function uses a transaction to ensure that either both the meeting
@@ -142,5 +150,57 @@ impl TranscriptsRepository {
             }
             None => transcript.chars().take(200).collect(), // Fallback to the start of the transcript
         }
+    }
+
+    /// Saves structured summary fields to the latest transcript row for the meeting.
+    pub async fn save_structured_summary(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        summary: &str,
+        key_points: &str,
+        action_items: &str,
+        decisions: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE transcripts
+            SET summary = ?, key_points = ?, action_items = ?, decisions = ?
+            WHERE id = (
+                SELECT id
+                FROM transcripts
+                WHERE meeting_id = ?
+                ORDER BY COALESCE(audio_start_time, 0) DESC, timestamp DESC
+                LIMIT 1
+            )
+            "#,
+        )
+        .bind(summary)
+        .bind(key_points)
+        .bind(action_items)
+        .bind(decisions)
+        .bind(meeting_id)
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Retrieves structured summary fields from the latest transcript row for a meeting.
+    pub async fn get_structured_summary(
+        pool: &SqlitePool,
+        meeting_id: &str,
+    ) -> Result<Option<StructuredSummaryRow>, sqlx::Error> {
+        sqlx::query_as::<_, StructuredSummaryRow>(
+            r#"
+            SELECT summary, key_points, action_items, decisions
+            FROM transcripts
+            WHERE meeting_id = ?
+            ORDER BY COALESCE(audio_start_time, 0) DESC, timestamp DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(meeting_id)
+        .fetch_optional(pool)
+        .await
     }
 }
