@@ -44,7 +44,8 @@ class SchemaValidator:
                 ('timestamp', 'TEXT', 'NOT NULL'),
                 ('summary', 'TEXT', ''),
                 ('action_items', 'TEXT', ''),
-                ('key_points', 'TEXT', '')
+                ('key_points', 'TEXT', ''),
+                ('decisions', 'TEXT', '')
             ],
             'summary_processes': [
                 ('meeting_id', 'TEXT', 'PRIMARY KEY'),

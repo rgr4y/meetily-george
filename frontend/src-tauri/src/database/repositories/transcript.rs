@@ -4,6 +4,11 @@ use sqlx::{Connection, Error as SqlxError, SqlitePool};
 use tracing::{error, info};
 use uuid::Uuid;
 
+/// Serialize a Vec<String> to a JSON array string for storage.
+fn vec_to_json(items: &[String]) -> String {
+    serde_json::to_string(items).unwrap_or_else(|_| "[]".to_string())
+}
+
 pub struct TranscriptsRepository;
 
 impl TranscriptsRepository {
@@ -118,6 +123,39 @@ impl TranscriptsRepository {
             .collect();
 
         Ok(results)
+    }
+
+    /// Saves structured summary fields (key_points, action_items, decisions) for all
+    /// transcripts belonging to a meeting.
+    pub async fn save_structured_summary(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        summary: Option<&str>,
+        key_points: &[String],
+        action_items: &[String],
+        decisions: &[String],
+    ) -> Result<u64, SqlxError> {
+        let key_points_json = vec_to_json(key_points);
+        let action_items_json = vec_to_json(action_items);
+        let decisions_json = vec_to_json(decisions);
+
+        let result = sqlx::query(
+            "UPDATE transcripts SET summary = ?, key_points = ?, action_items = ?, decisions = ? WHERE meeting_id = ?",
+        )
+        .bind(summary)
+        .bind(&key_points_json)
+        .bind(&action_items_json)
+        .bind(&decisions_json)
+        .bind(meeting_id)
+        .execute(pool)
+        .await?;
+
+        let rows = result.rows_affected();
+        info!(
+            "Updated structured summary for meeting {} ({} transcript rows)",
+            meeting_id, rows
+        );
+        Ok(rows)
     }
 
     /// Helper function to extract a snippet of text around the first match of a query.
