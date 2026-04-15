@@ -67,6 +67,13 @@ export interface SummaryResponse {
   };
 }
 
+export interface StructuredSummaryResponse {
+  summary: string;
+  key_points: string[];
+  action_items: string[];
+  decisions: string[];
+}
+
 // BlockNote-specific types
 export type SummaryFormat = 'legacy' | 'markdown' | 'blocknote';
 
@@ -109,4 +116,5 @@ export interface TranscriptSegmentData {
   endTime?: number; // audio_end_time in seconds
   text: string;
   confidence?: number;
+  speaker?: string; // e.g. "Me", "S1", "S2"
 }

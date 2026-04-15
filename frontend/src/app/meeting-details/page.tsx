@@ -1,7 +1,7 @@
 "use client"
 import { useSidebar } from "@/components/Sidebar/SidebarProvider";
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { Transcript, Summary } from "@/types";
+import { Transcript, Summary, StructuredSummaryResponse } from "@/types";
 import PageContent from "./page-content";
 import { useRouter, useSearchParams } from "next/navigation";
 import Analytics from "@/lib/analytics";
@@ -28,6 +28,8 @@ function MeetingDetailsContent() {
   const router = useRouter();
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetailsResponse | null>(null);
   const [meetingSummary, setMeetingSummary] = useState<Summary | null>(null);
+  const [meetingStructuredSummary, setMeetingStructuredSummary] = useState<StructuredSummaryResponse | null>(null);
+  const [meetingSummaryMarkdown, setMeetingSummaryMarkdown] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [shouldAutoGenerate, setShouldAutoGenerate] = useState<boolean>(false);
@@ -164,6 +166,8 @@ function MeetingDetailsContent() {
   useEffect(() => {
     setMeetingDetails(null);
     setMeetingSummary(null);
+    setMeetingStructuredSummary(null);
+    setMeetingSummaryMarkdown(null);
     setError(null);
     setIsLoading(true);
     // Reset auto-generation state to allow new meeting to be checked
@@ -196,6 +200,8 @@ function MeetingDetailsContent() {
 
     setMeetingDetails(null);
     setMeetingSummary(null);
+    setMeetingStructuredSummary(null);
+    setMeetingSummaryMarkdown(null);
     setError(null);
     setIsLoading(true);
 
@@ -212,6 +218,7 @@ function MeetingDetailsContent() {
         if (summary.status === 'idle' || (!summary.data && summary.status === 'error')) {
           console.warn('Meeting summary not found or no summary generated yet:', summary.error || 'idle');
           setMeetingSummary(null);
+          setMeetingSummaryMarkdown(null);
           return;
         }
 
@@ -232,12 +239,14 @@ function MeetingDetailsContent() {
         // Priority 1: BlockNote JSON format
         if (parsedData.summary_json) {
           setMeetingSummary(parsedData as any);
+          setMeetingSummaryMarkdown(typeof parsedData.markdown === 'string' ? parsedData.markdown : null);
           return;
         }
 
         // Priority 2: Markdown format
         if (parsedData.markdown) {
           setMeetingSummary(parsedData as any);
+          setMeetingSummaryMarkdown(parsedData.markdown);
           return;
         }
 
@@ -294,16 +303,34 @@ function MeetingDetailsContent() {
 
         console.log('LEGACY FORMAT: Formatted summary:', formattedSummary);
         setMeetingSummary(formattedSummary);
+        setMeetingSummaryMarkdown(null);
       } catch (error) {
         console.error('FETCH SUMMARY: Error fetching meeting summary:', error);
         // Don't set error state for summary fetch failure, set to null to show generate button
         setMeetingSummary(null);
+        setMeetingSummaryMarkdown(null);
+      }
+    };
+
+    const fetchStructuredSummary = async () => {
+      try {
+        const structured = await invoke('api_get_structured_summary', {
+          meetingId,
+        }) as StructuredSummaryResponse;
+
+        setMeetingStructuredSummary(structured);
+      } catch (error) {
+        console.error('FETCH STRUCTURED SUMMARY: Error fetching structured summary:', error);
+        setMeetingStructuredSummary(null);
       }
     };
 
     const loadData = async () => {
       try {
-        await fetchMeetingSummary();
+        await Promise.allSettled([
+          fetchMeetingSummary(),
+          fetchStructuredSummary(),
+        ]);
       } finally {
         setIsLoading(false);
       }
@@ -323,6 +350,8 @@ function MeetingDetailsContent() {
       if (
         meetingDetails &&
         meetingSummary === null &&
+        meetingStructuredSummary === null &&
+        !meetingSummaryMarkdown &&
         meetingDetails.transcripts &&
         meetingDetails.transcripts.length > 0 &&
         !hasCheckedAutoGen
@@ -333,7 +362,7 @@ function MeetingDetailsContent() {
     };
 
     checkAutoGen();
-  }, [meetingDetails, meetingSummary, hasCheckedAutoGen, setupAutoGeneration]);
+  }, [meetingDetails, meetingSummary, meetingStructuredSummary, meetingSummaryMarkdown, hasCheckedAutoGen, setupAutoGeneration]);
 
   if (error) {
     return (
@@ -361,6 +390,8 @@ function MeetingDetailsContent() {
   return <PageContent
     meeting={meetingDetails}
     summaryData={meetingSummary}
+    structuredSummary={meetingStructuredSummary}
+    summaryMarkdown={meetingSummaryMarkdown}
     shouldAutoGenerate={shouldAutoGenerate}
     onAutoGenerateComplete={() => setShouldAutoGenerate(false)}
     onMeetingUpdated={async () => {

@@ -1,5 +1,5 @@
 import { useCallback, RefObject } from 'react';
-import { Transcript, Summary } from '@/types';
+import { Transcript, Summary, StructuredSummaryResponse } from '@/types';
 import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { toast } from 'sonner';
 import Analytics from '@/lib/analytics';
@@ -10,7 +10,9 @@ interface UseCopyOperationsProps {
   transcripts: Transcript[];
   meetingTitle: string;
   aiSummary: Summary | null;
-  blockNoteSummaryRef: RefObject<BlockNoteSummaryViewRef | null>;
+  structuredSummary: StructuredSummaryResponse | null;
+  summaryMarkdownFromPage: string | null;
+  blockNoteSummaryRef: RefObject<BlockNoteSummaryViewRef>;
 }
 
 export function useCopyOperations({
@@ -18,6 +20,8 @@ export function useCopyOperations({
   transcripts,
   meetingTitle,
   aiSummary,
+  structuredSummary,
+  summaryMarkdownFromPage,
   blockNoteSummaryRef,
 }: UseCopyOperationsProps) {
 
@@ -125,6 +129,56 @@ export function useCopyOperations({
         console.log('📝 Markdown from aiSummary, length:', summaryMarkdown.length);
       }
 
+      // Fallback: Use the raw markdown fetched alongside the structured summary
+      if (!summaryMarkdown && summaryMarkdownFromPage) {
+        console.log('📝 Using markdown from page summary payload');
+        summaryMarkdown = summaryMarkdownFromPage;
+        console.log('📝 Markdown from page summary payload, length:', summaryMarkdown.length);
+      }
+
+      // Fallback: Use raw structured summary markdown if present
+      if (!summaryMarkdown && structuredSummary) {
+        console.log('📝 Converting structured summary to markdown');
+        const sections: string[] = [];
+
+        if (structuredSummary.summary.trim()) {
+          sections.push(`## Summary\n\n${structuredSummary.summary.trim()}`);
+        }
+
+        if (structuredSummary.key_points.some((item) => item.trim())) {
+          sections.push(
+            `## Key Points\n\n${structuredSummary.key_points
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .map((item) => `- ${item}`)
+              .join('\n')}`
+          );
+        }
+
+        if (structuredSummary.action_items.some((item) => item.trim())) {
+          sections.push(
+            `## Action Items\n\n${structuredSummary.action_items
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .map((item) => `- [ ] ${item}`)
+              .join('\n')}`
+          );
+        }
+
+        if (structuredSummary.decisions.some((item) => item.trim())) {
+          sections.push(
+            `## Decisions\n\n${structuredSummary.decisions
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .map((item) => `- ${item}`)
+              .join('\n')}`
+          );
+        }
+
+        summaryMarkdown = sections.join('\n\n');
+        console.log('📝 Structured summary converted, length:', summaryMarkdown.length);
+      }
+
       // Fallback: Check for legacy format
       if (!summaryMarkdown && aiSummary) {
         console.log('📝 Converting legacy format to markdown');
@@ -181,13 +235,13 @@ export function useCopyOperations({
       // Track copy analytics
       await Analytics.trackCopy('summary', {
         meeting_id: meeting.id,
-        has_markdown: (!!aiSummary && 'markdown' in aiSummary).toString()
+        has_markdown: (!!summaryMarkdown).toString()
       });
     } catch (error) {
       console.error('❌ Failed to copy summary:', error);
       toast.error("Failed to copy summary");
     }
-  }, [aiSummary, meetingTitle, meeting, blockNoteSummaryRef]);
+  }, [aiSummary, structuredSummary, summaryMarkdownFromPage, meetingTitle, meeting, blockNoteSummaryRef]);
 
   return {
     handleCopyTranscript,

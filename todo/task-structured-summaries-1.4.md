@@ -1,6 +1,7 @@
 # Task 1.4: Frontend UI for Structured Summary Display
 
-status: pending
+status: done
+completed: 2026-04-15
 epic: task-structured-summaries-1.0.md
 depends_on: task-structured-summaries-1.3.md
 

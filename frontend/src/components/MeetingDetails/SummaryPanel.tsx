@@ -1,8 +1,9 @@
 "use client";
 
-import { Summary, SummaryResponse, Transcript } from '@/types';
+import { Summary, SummaryResponse, StructuredSummaryResponse, Transcript } from '@/types';
 import { EditableTitle } from '@/components/EditableTitle';
 import { BlockNoteSummaryView, BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import { StructuredSummaryView } from '@/components/AISummary/StructuredSummaryView';
 import { EmptyStateSummary } from '@/components/EmptyStateSummary';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { SummaryGeneratorButtonGroup } from './SummaryGeneratorButtonGroup';
@@ -22,12 +23,14 @@ interface SummaryPanelProps {
   onStartEditTitle: () => void;
   onFinishEditTitle: () => void;
   isTitleDirty: boolean;
-  summaryRef: RefObject<BlockNoteSummaryViewRef | null>;
+  summaryRef: RefObject<BlockNoteSummaryViewRef>;
   isSaving: boolean;
   onSaveAll: () => Promise<void>;
   onCopySummary: () => Promise<void>;
   onOpenFolder: () => Promise<void>;
   aiSummary: Summary | null;
+  structuredSummary: StructuredSummaryResponse | null;
+  summaryMarkdown: string | null;
   summaryStatus: 'idle' | 'processing' | 'summarizing' | 'regenerating' | 'completed' | 'error';
   transcripts: Transcript[];
   modelConfig: ModelConfig;
@@ -67,6 +70,8 @@ export function SummaryPanel({
   onCopySummary,
   onOpenFolder,
   aiSummary,
+  structuredSummary,
+  summaryMarkdown,
   summaryStatus,
   transcripts,
   modelConfig,
@@ -92,6 +97,17 @@ export function SummaryPanel({
   onOpenModelSettings
 }: SummaryPanelProps) {
   const isSummaryLoading = summaryStatus === 'processing' || summaryStatus === 'summarizing' || summaryStatus === 'regenerating';
+  const hasStructuredSummary = Boolean(
+    structuredSummary &&
+      (
+        structuredSummary.summary.trim() ||
+        structuredSummary.key_points.some((item) => item.trim()) ||
+        structuredSummary.action_items.some((item) => item.trim()) ||
+        structuredSummary.decisions.some((item) => item.trim())
+      )
+  );
+  const hasSummaryContent = Boolean(aiSummary) || hasStructuredSummary || Boolean(summaryMarkdown?.trim());
+  const shouldUseStructuredView = hasStructuredSummary || Boolean(summaryMarkdown?.trim());
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-background overflow-hidden">
@@ -106,7 +122,7 @@ export function SummaryPanel({
         /> */}
 
         {/* Button groups - only show when summary exists */}
-        {aiSummary && !isSummaryLoading && (
+        {hasSummaryContent && !isSummaryLoading && (
           <div className="flex items-center justify-center w-full pt-0 gap-2">
             {/* Left-aligned: Summary Generator Button Group */}
             <div className="flex-shrink-0">
@@ -142,7 +158,7 @@ export function SummaryPanel({
                   console.log('Find in summary clicked');
                 }}
                 onOpenFolder={onOpenFolder}
-                hasSummary={!!aiSummary}
+                hasSummary={hasSummaryContent}
               />
             </div>
           </div>
@@ -180,7 +196,7 @@ export function SummaryPanel({
             </div>
           </div>
         </div>
-      ) : !aiSummary ? (
+      ) : !hasSummaryContent ? (
         <div className="flex flex-col h-full">
           {/* Centered Summary Generator Button Group when no summary */}
           <div className="flex items-center justify-center pt-8 pb-4">
@@ -258,24 +274,34 @@ export function SummaryPanel({
             </div>
           )}
           <div className="p-6 w-full">
-            <BlockNoteSummaryView
-              ref={summaryRef}
-              summaryData={aiSummary}
-              onSave={onSaveSummary}
-              onSummaryChange={onSummaryChange}
-              onDirtyChange={onDirtyChange}
-              status={summaryStatus}
-              error={summaryError}
-              onRegenerateSummary={() => {
-                Analytics.trackButtonClick('regenerate_summary', 'meeting_details');
-                onRegenerateSummary();
-              }}
-              meeting={{
-                id: meeting.id,
-                title: meetingTitle,
-                created_at: meeting.created_at
-              }}
-            />
+            {shouldUseStructuredView ? (
+              <StructuredSummaryView
+                summary={structuredSummary?.summary || ''}
+                keyPoints={structuredSummary?.key_points || []}
+                actionItems={structuredSummary?.action_items || []}
+                decisions={structuredSummary?.decisions || []}
+                fallbackMarkdown={summaryMarkdown}
+              />
+            ) : (
+              <BlockNoteSummaryView
+                ref={summaryRef}
+                summaryData={aiSummary}
+                onSave={onSaveSummary}
+                onSummaryChange={onSummaryChange}
+                onDirtyChange={onDirtyChange}
+                status={summaryStatus}
+                error={summaryError}
+                onRegenerateSummary={() => {
+                  Analytics.trackButtonClick('regenerate_summary', 'meeting_details');
+                  onRegenerateSummary();
+                }}
+                meeting={{
+                  id: meeting.id,
+                  title: meetingTitle,
+                  created_at: meeting.created_at
+                }}
+              />
+            )}
           </div>
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-destructive/10 text-destructive' :

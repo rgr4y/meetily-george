@@ -24,7 +24,7 @@ interface TranscriptContextType {
   addTranscript: (update: TranscriptUpdate) => void;
   copyTranscript: () => void;
   flushBuffer: () => void;
-  transcriptContainerRef: React.RefObject<HTMLDivElement | null>;
+  transcriptContainerRef: React.RefObject<HTMLDivElement>;
   meetingTitle: string;
   setMeetingTitle: (title: string) => void;
   clearTranscripts: () => void;

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Summary, SummaryResponse } from '@/types';
+import { Summary, SummaryResponse, StructuredSummaryResponse } from '@/types';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
@@ -21,6 +21,8 @@ import { useConfig } from '@/contexts/ConfigContext';
 export default function PageContent({
   meeting,
   summaryData,
+  structuredSummary,
+  summaryMarkdown,
   shouldAutoGenerate = false,
   onAutoGenerateComplete,
   onMeetingUpdated,
@@ -35,6 +37,8 @@ export default function PageContent({
 }: {
   meeting: any;
   summaryData: Summary | null;
+  structuredSummary: StructuredSummaryResponse | null;
+  summaryMarkdown: string | null;
   shouldAutoGenerate?: boolean;
   onAutoGenerateComplete?: () => void;
   onMeetingUpdated?: () => Promise<void>;
@@ -127,6 +131,8 @@ export default function PageContent({
     transcripts: meetingData.transcripts,
     meetingTitle: meetingData.meetingTitle,
     aiSummary: meetingData.aiSummary,
+    structuredSummary,
+    summaryMarkdownFromPage: summaryMarkdown,
     blockNoteSummaryRef: meetingData.blockNoteSummaryRef,
   });
 
@@ -206,6 +212,8 @@ export default function PageContent({
           onCopySummary={copyOperations.handleCopySummary}
           onOpenFolder={meetingOperations.handleOpenMeetingFolder}
           aiSummary={meetingData.aiSummary}
+          structuredSummary={structuredSummary}
+          summaryMarkdown={summaryMarkdown}
           summaryStatus={summaryGeneration.summaryStatus}
           transcripts={meetingData.transcripts}
           modelConfig={modelConfig}
