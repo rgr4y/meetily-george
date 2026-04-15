@@ -488,7 +488,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold mb-4">Recording Settings</h3>
-        <p className="text-sm text-gray-600 mb-6">
+        <p className="text-sm text-muted-foreground mb-6">
           Configure how your audio recordings are saved during meetings.
         </p>
       </div>
@@ -497,7 +497,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div className="flex-1">
           <div className="font-medium">Save Audio Recordings</div>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             Automatically save audio files when recording stops
           </div>
         </div>
@@ -511,25 +511,25 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       {/* Folder Location - Only shown when auto_save is enabled */}
       {preferences.auto_save && (
         <div className="space-y-4">
-          <div className="p-4 border rounded-lg bg-gray-50">
+          <div className="p-4 border rounded-lg bg-muted">
             <div className="font-medium mb-2">Save Location</div>
-            <div className="text-sm text-gray-600 mb-3 break-all">
+            <div className="text-sm text-muted-foreground mb-3 break-all">
               {preferences.save_folder || 'Default folder'}
             </div>
             <button
               onClick={handleOpenFolder}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
             >
               <FolderOpen className="w-4 h-4" />
               Open Folder
             </button>
           </div>
 
-          <div className="p-4 border rounded-lg bg-blue-50">
-            <div className="text-sm text-blue-800">
+          <div className="p-4 border rounded-lg bg-accent rounded-md border border-border">
+            <div className="text-sm text-accent-foreground">
               <strong>File Format:</strong> {preferences.file_format.toUpperCase()} files
             </div>
-            <div className="text-xs text-blue-600 mt-1">
+            <div className="text-xs text-accent-foreground mt-1">
               Recordings are saved with timestamp: recording_YYYYMMDD_HHMMSS.{preferences.file_format}
             </div>
           </div>
@@ -538,8 +538,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
 
       {/* Info when auto_save is disabled */}
       {!preferences.auto_save && (
-        <div className="p-4 border rounded-lg bg-yellow-50">
-          <div className="text-sm text-yellow-800">
+        <div className="p-4 border border-border rounded-lg bg-accent">
+          <div className="text-sm text-yellow-800 dark:text-yellow-300">
             Audio recording is disabled. Enable "Save Audio Recordings" to automatically save your meeting audio.
           </div>
         </div>
@@ -549,7 +549,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div className="flex-1">
           <div className="font-medium">Recording Start Notification</div>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             Show reminder to inform participants when recording starts
           </div>
         </div>
@@ -563,11 +563,11 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       <div className="p-4 border rounded-lg space-y-3">
         <div className="flex items-start gap-3">
           <div className="mt-0.5">
-            <Keyboard className="w-4 h-4 text-gray-600" />
+            <Keyboard className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="flex-1">
             <div className="font-medium">Push-to-talk Dictation Hotkey</div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               Hold this hotkey to dictate into WeChat/Slack/chat inputs. Example formats:
               <span className="font-medium"> fn+space</span>,
               <span className="font-medium"> ctrl+space</span>,
@@ -582,8 +582,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
             tabIndex={isCapturingDictationHotkey ? 0 : -1}
             className={`rounded-md border px-3 py-2 text-sm transition-colors outline-none ${
               isCapturingDictationHotkey
-                ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50'
-                : 'border-gray-300 bg-gray-50'
+                ? 'border-primary ring-1 ring-primary bg-accent rounded-md border'
+                : 'border-border bg-muted'
             }`}
           >
             {isCapturingDictationHotkey
@@ -591,7 +591,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
               : `Current hotkey: ${dictationHotkey}`}
           </div>
           {captureHint && (
-            <p className="text-xs text-gray-600">{captureHint}</p>
+            <p className="text-xs text-muted-foreground">{captureHint}</p>
           )}
         </div>
 
@@ -622,11 +622,11 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         </div>
 
         {showDictationPermissionNotice && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 space-y-3">
-            <p className="text-sm text-red-700">
+          <div className="rounded-md border bg-destructive/10 border border-destructive/30 p-3 space-y-3">
+            <p className="text-sm text-destructive">
               Dictation hotkey needs macOS permissions before it can work.
             </p>
-            <div className="text-xs text-red-700 space-y-1">
+            <div className="text-xs text-destructive space-y-1">
               {missingAccessibility && (
                 <p>Accessibility permission is missing.</p>
               )}
@@ -663,12 +663,12 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       {/* Device Preferences */}
       <div className="space-y-4">
         <div className="border-t pt-6">
-          <h4 className="text-base font-medium text-gray-900 mb-4">Default Audio Devices</h4>
-          <p className="text-sm text-gray-600 mb-4">
+          <h4 className="text-base font-medium text-foreground mb-4">Default Audio Devices</h4>
+          <p className="text-sm text-muted-foreground mb-4">
             Set your preferred microphone and system audio devices for recording. These will be automatically selected when starting new recordings.
           </p>
 
-          <div className="border rounded-lg p-4 bg-gray-50">
+          <div className="border rounded-lg p-4 bg-muted">
             <DeviceSelection
               selectedDevices={{
                 micDevice: preferences.preferred_mic_device,
