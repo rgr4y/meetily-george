@@ -22,6 +22,7 @@ export interface BetaFeatures {
    * @since v0.3.0
    */
   importAndRetranscribe: boolean;
+
 }
 
 export const DEFAULT_BETA_FEATURES: BetaFeatures = {
