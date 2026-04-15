@@ -16,6 +16,7 @@ import { RecordingStateProvider } from '@/contexts/RecordingStateContext'
 import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
 import { ConfigProvider, useConfig } from '@/contexts/ConfigContext'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import { OnboardingProvider } from '@/contexts/OnboardingContext'
 import { OnboardingFlow } from '@/components/onboarding'
 import { loadBetaFeatures } from '@/types/betaFeatures'
@@ -304,12 +305,17 @@ export default function RootLayout({
 
   return (
     <html lang="en">
+      {/* Blocking inline script: applies theme class before first paint, eliminating white flash */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('themePreference');var sys=window.matchMedia('(prefers-color-scheme: dark)').matches;var dark=(p==='dark')||(p!=='light'&&sys);if(dark){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';document.documentElement.style.background='hsl(0,0%,12%)';}else{document.documentElement.style.colorScheme='light';}}catch(e){}})();` }} />
+      </head>
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
               <ConfigProvider>
-                <OllamaDownloadProvider>
+                <ThemeProvider>
+                  <OllamaDownloadProvider>
                   <OnboardingProvider>
                     <UpdateCheckProvider>
                       <SidebarProvider>
@@ -321,10 +327,10 @@ export default function RootLayout({
 
                               {/* Show loading, onboarding, or main app */}
                               {!onboardingCheckDone ? (
-                                <div className="fixed inset-0 bg-gray-50 flex items-center justify-center z-50">
+                                <div className="fixed inset-0 bg-background flex items-center justify-center z-50">
                                   <div className="text-center space-y-3">
-                                    <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin mx-auto" />
-                                    <p className="text-sm text-gray-500">Loading...</p>
+                                    <div className="w-8 h-8 border-2 border-border border-t-foreground rounded-full animate-spin mx-auto" />
+                                    <p className="text-sm text-muted-foreground">Loading...</p>
                                   </div>
                                 </div>
                               ) : showOnboarding ? (
@@ -349,13 +355,14 @@ export default function RootLayout({
                     </UpdateCheckProvider>
                   </OnboardingProvider>
 
-                </OllamaDownloadProvider>
+                  </OllamaDownloadProvider>
+                </ThemeProvider>
               </ConfigProvider>
             </TranscriptProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>
 
-        <Toaster position="bottom-center" richColors closeButton />
+        <Toaster position="bottom-center" richColors closeButton theme="system" />
       </body>
     </html>
   )
