@@ -193,21 +193,6 @@ export function PreferenceSettings() {
         </p>
 
         <div className="space-y-4">
-          {/* Database Location */}
-          {/* <div className="p-4 border rounded-lg bg-muted">
-            <div className="font-medium mb-2">Database</div>
-            <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
-              {storageLocations?.database || 'Loading...'}
-            </div>
-            <button
-              onClick={() => handleOpenFolder('database')}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Open Folder
-            </button>
-          </div> */}
-
           {/* Models Location */}
           {/* <div className="p-4 border rounded-lg bg-muted">
             <div className="font-medium mb-2">Whisper Models</div>
@@ -237,12 +222,21 @@ export function PreferenceSettings() {
               Open Folder
             </button>
           </div>
-        </div>
 
-        <div className="mt-4 p-3 bg-accent text-accent-foreground rounded-md">
-          <p className="text-xs">
-            <strong>Note:</strong> Database and models are stored together in your application data directory for unified management.
-          </p>
+          {/* Database Location */}
+          <div className="p-4 border rounded-lg bg-muted">
+            <div className="font-medium mb-2">Database & Local Models</div>
+            <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
+              {storageLocations?.database || 'Loading...'}
+            </div>
+            <button
+              onClick={() => handleOpenFolder('database')}
+              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Open Folder
+            </button>
+          </div>
         </div>
       </div>
 
