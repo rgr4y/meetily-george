@@ -47,7 +47,7 @@ Team sync discussion about Q1 2024 goals and current project status.
 2. Q1 2024 Planning
 3. Team Concerns & Feedback
 
-## Key Decisions
+## Key Points
 - Prioritized mobile app development for Q1
 - Scheduled weekly design reviews
 - Added two new features to the roadmap

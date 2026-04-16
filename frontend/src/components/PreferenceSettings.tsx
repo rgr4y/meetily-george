@@ -247,7 +247,7 @@ export function PreferenceSettings() {
       </div>
 
       {/* Analytics Section */}
-      <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
+      <div className="bg-card rounded-lg border border-border p-6 shadow-sm hidden">
         <AnalyticsConsentSwitch />
       </div>
     </div>

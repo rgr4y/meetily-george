@@ -68,18 +68,21 @@ export function StructuredSummaryView({
   const normalizedActionItems = actionItems.map((item) => item.trim()).filter(Boolean);
   const normalizedDecisions = decisions.map((item) => item.trim()).filter(Boolean);
 
-  const hasContent = hasStructuredContent(
-    normalizedSummary,
-    normalizedKeyPoints,
-    normalizedActionItems,
-    normalizedDecisions
-  );
+  // True structured content requires at least one array field populated.
+  // If only summary exists with no key_points/action_items/decisions,
+  // it's likely the full markdown dumped into summary — use fallback rendering.
+  const hasArrayContent =
+    normalizedKeyPoints.length > 0 ||
+    normalizedActionItems.length > 0 ||
+    normalizedDecisions.length > 0;
 
-  if (!hasContent) {
-    if (fallbackMarkdown?.trim()) {
+  if (!hasArrayContent) {
+    // Render the summary or fallbackMarkdown as parsed markdown
+    const markdownToRender = fallbackMarkdown?.trim() || normalizedSummary;
+    if (markdownToRender) {
       return (
         <div className={cn('w-full', className)}>
-          {renderMarkdownFallback(fallbackMarkdown)}
+          {renderMarkdownFallback(markdownToRender)}
         </div>
       );
     }
@@ -117,7 +120,7 @@ export function StructuredSummaryView({
   return (
     <div className={cn('w-full', className)}>
       <div className="rounded-xl border border-border bg-card shadow-sm">
-        <Accordion type="multiple" defaultValue={sections.length > 0 ? [sections[0].id] : []} className="w-full">
+        <Accordion type="multiple" defaultValue={sections.map(s => s.id)} className="w-full">
           {sections.map((section) => {
             const Icon = section.icon;
 
@@ -135,9 +138,9 @@ export function StructuredSummaryView({
 
                 <AccordionContent className="pt-0">
                   {section.id === 'summary' && (
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-                      {normalizedSummary}
-                    </p>
+                    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-6 text-foreground">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizedSummary}</ReactMarkdown>
+                    </div>
                   )}
 
                   {section.id === 'key-points' && (

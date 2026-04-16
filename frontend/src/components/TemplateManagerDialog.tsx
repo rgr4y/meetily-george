@@ -204,16 +204,16 @@ export function TemplateManagerDialog({
               {templates.map((template) => (
                 <div
                   key={template.id}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50"
+                  className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm truncate">{template.name}</span>
                       {template.is_custom && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded flex-shrink-0">Custom</span>
+                        <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded flex-shrink-0">Custom</span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 truncate">{template.description}</p>
+                    <p className="text-xs text-muted-foreground truncate">{template.description}</p>
                   </div>
                   <div className="flex items-center gap-1 ml-2 flex-shrink-0">
                     <Button
@@ -242,7 +242,7 @@ export function TemplateManagerDialog({
                           onClick={() => handleDelete(template.id)}
                           disabled={loading}
                           title="Delete template"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -343,15 +343,15 @@ export function TemplateManagerDialog({
                   </div>
 
                   {editSections.map((section, index) => (
-                    <div key={index} className="border rounded-lg p-3 space-y-3 bg-gray-50/50">
+                    <div key={index} className="border border-border rounded-lg p-3 space-y-3 bg-muted/50">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">Section {index + 1}</span>
+                        <span className="text-xs font-medium text-muted-foreground">Section {index + 1}</span>
                         {!isReadOnly && editSections.length > 1 && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => removeSection(index)}
-                            className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
+                            className="h-6 w-6 p-0 text-destructive/70 hover:text-destructive"
                           >
                             <X className="h-3 w-3" />
                           </Button>

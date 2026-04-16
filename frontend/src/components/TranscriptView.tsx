@@ -370,8 +370,8 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
             </>
           ) : (
             <>
-              <p className="text-[2rem] font-semibold">Welcome to meetily!</p>
-              <p className="text-[1rem] mt-[1rem]">Start recording to see live transcription</p>
+              <p className="text-[1.9rem] font-semibold">Welcome to meetily!</p>
+              <p className="text-[0.9rem] mt-[1rem]">Start recording to see live transcription</p>
             </>
           )}
         </motion.div>

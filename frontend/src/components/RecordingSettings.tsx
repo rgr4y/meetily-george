@@ -327,6 +327,52 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     }
   };
 
+  const handleChangeFolder = async () => {
+    try {
+      const newPath = await invoke<string | null>('select_recording_folder');
+      if (newPath) {
+        setPreferences(prev => ({ ...prev, save_folder: newPath }));
+        toast.success('Save location updated');
+
+        // Scan new folder for existing recordings
+        await handleScanFolder();
+      }
+    } catch (error) {
+      console.error('Failed to change recordings folder:', error);
+      toast.error('Failed to change save location');
+    }
+  };
+
+  const [isScanning, setIsScanning] = useState(false);
+
+  const handleScanFolder = async () => {
+    setIsScanning(true);
+    try {
+      const result = await invoke<{
+        total_folders_found: number;
+        imported: number;
+        already_existed: number;
+        skipped_errors: number;
+      }>('scan_recordings_folder');
+
+      if (result.imported > 0) {
+        toast.success(
+          `Found ${result.total_folders_found} recording${result.total_folders_found !== 1 ? 's' : ''}. Imported ${result.imported} new meeting${result.imported !== 1 ? 's' : ''}.`
+        );
+      } else if (result.total_folders_found > 0) {
+        toast.info(`${result.already_existed} recording${result.already_existed !== 1 ? 's' : ''} already in library.`);
+      }
+      if (result.skipped_errors > 0) {
+        toast.warning(`${result.skipped_errors} folder${result.skipped_errors !== 1 ? 's' : ''} could not be imported.`);
+      }
+    } catch (error) {
+      console.error('Failed to scan recordings folder:', error);
+      // Non-fatal — folder was changed successfully
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   const handleNotificationToggle = async (enabled: boolean) => {
     try {
       setShowRecordingNotification(enabled);
@@ -516,13 +562,34 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
             <div className="text-sm text-muted-foreground mb-3 break-all">
               {preferences.save_folder || 'Default folder'}
             </div>
-            <button
-              onClick={handleOpenFolder}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Open Folder
-            </button>
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={handleOpenFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Open Folder
+              </button>
+              <button
+                onClick={handleChangeFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Change Location
+              </button>
+              <button
+                onClick={handleScanFolder}
+                disabled={isScanning}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                {isScanning ? (
+                  <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FolderOpen className="w-4 h-4" />
+                )}
+                {isScanning ? 'Scanning...' : 'Scan for Recordings'}
+              </button>
+            </div>
           </div>
 
           <div className="p-4 border rounded-lg bg-accent rounded-md border border-border">

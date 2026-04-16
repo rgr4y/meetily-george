@@ -3,7 +3,7 @@
 import { Summary, SummaryResponse, StructuredSummaryResponse, Transcript } from '@/types';
 import { EditableTitle } from '@/components/EditableTitle';
 import { BlockNoteSummaryView, BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
-import { StructuredSummaryView } from '@/components/AISummary/StructuredSummaryView';
+import { EditableStructuredSummary, EditableStructuredSummaryRef } from '@/components/AISummary/EditableStructuredSummary';
 import { EmptyStateSummary } from '@/components/EmptyStateSummary';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { SummaryGeneratorButtonGroup } from './SummaryGeneratorButtonGroup';
@@ -23,7 +23,7 @@ interface SummaryPanelProps {
   onStartEditTitle: () => void;
   onFinishEditTitle: () => void;
   isTitleDirty: boolean;
-  summaryRef: RefObject<BlockNoteSummaryViewRef>;
+  summaryRef: RefObject<BlockNoteSummaryViewRef | EditableStructuredSummaryRef | null>;
   isSaving: boolean;
   onSaveAll: () => Promise<void>;
   onCopySummary: () => Promise<void>;
@@ -97,17 +97,25 @@ export function SummaryPanel({
   onOpenModelSettings
 }: SummaryPanelProps) {
   const isSummaryLoading = summaryStatus === 'processing' || summaryStatus === 'summarizing' || summaryStatus === 'regenerating';
-  const hasStructuredSummary = Boolean(
+  // Structured view requires at least one array field populated (key_points, action_items, decisions).
+  // If only summary text exists, fall through to BlockNote editor which renders markdown well.
+  const hasStructuredArrays = Boolean(
     structuredSummary &&
       (
-        structuredSummary.summary.trim() ||
         structuredSummary.key_points.some((item) => item.trim()) ||
         structuredSummary.action_items.some((item) => item.trim()) ||
         structuredSummary.decisions.some((item) => item.trim())
       )
   );
+  const hasStructuredSummary = Boolean(
+    structuredSummary &&
+      (
+        structuredSummary.summary.trim() ||
+        hasStructuredArrays
+      )
+  );
   const hasSummaryContent = Boolean(aiSummary) || hasStructuredSummary || Boolean(summaryMarkdown?.trim());
-  const shouldUseStructuredView = hasStructuredSummary || Boolean(summaryMarkdown?.trim());
+  const shouldUseStructuredView = hasStructuredArrays;
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-background overflow-hidden">
@@ -274,17 +282,18 @@ export function SummaryPanel({
             </div>
           )}
           <div className="p-6 w-full">
-            {shouldUseStructuredView ? (
-              <StructuredSummaryView
-                summary={structuredSummary?.summary || ''}
-                keyPoints={structuredSummary?.key_points || []}
-                actionItems={structuredSummary?.action_items || []}
-                decisions={structuredSummary?.decisions || []}
-                fallbackMarkdown={summaryMarkdown}
+            {shouldUseStructuredView && structuredSummary ? (
+              <EditableStructuredSummary
+                ref={summaryRef as RefObject<EditableStructuredSummaryRef | null>}
+                structuredSummary={structuredSummary}
+                summaryMarkdown={summaryMarkdown}
+                meetingId={meeting.id}
+                onSave={onSaveSummary}
+                onDirtyChange={onDirtyChange}
               />
             ) : (
               <BlockNoteSummaryView
-                ref={summaryRef}
+                ref={summaryRef as RefObject<BlockNoteSummaryViewRef | null>}
                 summaryData={aiSummary}
                 onSave={onSaveSummary}
                 onSummaryChange={onSummaryChange}

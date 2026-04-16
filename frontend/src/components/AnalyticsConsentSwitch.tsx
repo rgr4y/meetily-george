@@ -154,7 +154,7 @@ export default function AnalyticsConsentSwitch() {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-4" hidden={true}>
         <div>
           <h3 className="text-base font-semibold text-foreground mb-2">Usage Analytics</h3>
           <p className="text-sm text-muted-foreground mb-4">

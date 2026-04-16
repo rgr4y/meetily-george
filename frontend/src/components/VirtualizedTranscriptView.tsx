@@ -9,6 +9,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { UserRound } from "lucide-react";
+import { useConfig } from "@/contexts/ConfigContext";
+import { isDev } from "@/lib/env";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -63,6 +66,78 @@ function cleanStopWords(text: string): string {
     return cleanedText.replace(/\s+/g, ' ').trim();
 }
 
+// Memoized speaker pill with inline rename
+const SpeakerPill = memo(function SpeakerPill({
+    speakerKey,
+    displayName,
+    onRename,
+}: {
+    speakerKey: string;
+    displayName: string;
+    onRename: (key: string, name: string) => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(displayName);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const open = () => {
+        setDraft(displayName);
+        setEditing(true);
+        setTimeout(() => inputRef.current?.select(), 0);
+    };
+
+    const commit = () => {
+        const trimmed = draft.trim();
+        if (trimmed) onRename(speakerKey, trimmed);
+        setEditing(false);
+    };
+
+    const SPEAKER_COLORS: Record<string, string> = {
+        Me: 'bg-blue-500/15 text-blue-400 border-blue-500/30 hover:bg-blue-500/25',
+        S1: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25',
+        S2: 'bg-purple-500/15 text-purple-400 border-purple-500/30 hover:bg-purple-500/25',
+        S3: 'bg-orange-500/15 text-orange-400 border-orange-500/30 hover:bg-orange-500/25',
+        S4: 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25',
+        P1: 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25',
+        P2: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/25',
+    };
+    const colorClass = SPEAKER_COLORS[speakerKey] ?? 'bg-muted text-muted-foreground border-border hover:bg-accent';
+
+    if (editing) {
+        return (
+            <span className="inline-flex items-center gap-1 mr-2">
+                <input
+                    ref={inputRef}
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={e => {
+                        if (e.key === 'Enter') commit();
+                        if (e.key === 'Escape') setEditing(false);
+                    }}
+                    className="text-xs px-2 py-0.5 rounded border border-border bg-background text-foreground w-24 outline-none focus:ring-1 focus:ring-primary"
+                    maxLength={32}
+                />
+            </span>
+        );
+    }
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    onClick={open}
+                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium mr-2 transition-colors ${colorClass}`}
+                >
+                    <UserRound className="w-3 h-3" />
+                    {displayName}
+                </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">Click to rename speaker</TooltipContent>
+        </Tooltip>
+    );
+});
+
 // Memoized transcript segment component
 const TranscriptSegment = memo(function TranscriptSegment({
     id,
@@ -71,6 +146,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence,
     isStreaming,
     showConfidence,
+    speaker,
+    speakerDisplayName,
+    onSpeakerRename,
 }: {
     id: string;
     timestamp: number;
@@ -78,11 +156,23 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence?: number;
     isStreaming: boolean;
     showConfidence: boolean;
+    speaker?: string;
+    speakerDisplayName?: string;
+    onSpeakerRename?: (key: string, name: string) => void;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
 
     return (
         <div id={`segment-${id}`} className="mb-3">
+            {speaker && (
+                <div className="mb-1 ml-[58px]">
+                    <SpeakerPill
+                        speakerKey={speaker}
+                        displayName={speakerDisplayName ?? speaker}
+                        onRename={onSpeakerRename ?? (() => {})}
+                    />
+                </div>
+            )}
             <div className="flex items-start gap-2">
                 <Tooltip>
                     <TooltipTrigger>
@@ -125,6 +215,12 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     loadedCount = 0,
     onLoadMore,
 }) => {
+    // Speaker display-name overrides: raw label -> user-provided name
+    const [speakerNames, setSpeakerNames] = useState<Record<string, string>>({});
+    const handleSpeakerRename = useCallback((key: string, name: string) => {
+        setSpeakerNames(prev => ({ ...prev, [key]: name }));
+    }, []);
+
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
     // Ref for infinite scroll trigger element
@@ -223,8 +319,18 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     // Use simple rendering for small lists, virtualization for large lists
     const useVirtualization = segments.length >= VIRTUALIZATION_THRESHOLD;
 
+    const { transcriptModelConfig } = useConfig();
+    const modelLabel = transcriptModelConfig?.model || transcriptModelConfig?.provider || '';
+
     return (
         <div ref={scrollRef} className="flex flex-col h-full overflow-y-auto px-4 py-2">
+            {/* Model label - top right, dev only */}
+            {isDev && modelLabel && (
+                <div className="flex justify-end mb-1">
+                    <span className="text-xs text-muted-foreground/50">{modelLabel}</span>
+                </div>
+            )}
+
             {/* Recording Status Bar - Sticky at top, always visible when recording */}
             <AnimatePresence>
                 {isRecording && (
@@ -257,8 +363,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                         </>
                     ) : (
                         <>
-                            <p className="text-[2rem] font-semibold">Welcome to meetily!</p>
-                            <p className="text-[1rem] mt-[1rem]">Start recording to see live transcription</p>
+                            <p className="text-[1.9rem] font-semibold">Welcome to meetily!</p>
+                            <p className="text-[0.9rem] mt-[1rem]">Start recording to see live transcription</p>
                         </>
                     )}
                 </motion.div>
@@ -296,6 +402,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        speaker={segment.speaker}
+                                        speakerDisplayName={segment.speaker ? (speakerNames[segment.speaker] ?? segment.speaker) : undefined}
+                                        onSpeakerRename={handleSpeakerRename}
                                     />
                                 </div>
                             );
@@ -352,6 +461,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        speaker={segment.speaker}
+                                        speakerDisplayName={segment.speaker ? (speakerNames[segment.speaker] ?? segment.speaker) : undefined}
+                                        onSpeakerRename={handleSpeakerRename}
                                     />
                                 </motion.div>
                             );

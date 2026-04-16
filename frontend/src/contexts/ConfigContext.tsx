@@ -175,8 +175,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const preferencesLoadedRef = useRef(false);
   const isLoadingRef = useRef(false);
 
-  // Load Ollama models (uses saved endpoint, re-runs when endpoint changes after config load)
+  // Load Ollama models only when provider is ollama (avoids noisy errors when Ollama isn't installed)
   useEffect(() => {
+    if (modelConfig.provider !== 'ollama') {
+      return;
+    }
     const loadModels = async () => {
       try {
         const endpoint = modelConfig.ollamaEndpoint || null;
@@ -185,11 +188,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         setError('');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load Ollama models');
-        console.error('Error loading models:', err);
+        console.warn('Ollama not available:', err);
       }
     };
     loadModels();
-  }, [modelConfig.ollamaEndpoint]);
+  }, [modelConfig.provider, modelConfig.ollamaEndpoint]);
 
   // Load transcript configuration on mount
   useEffect(() => {

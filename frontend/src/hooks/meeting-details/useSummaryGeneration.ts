@@ -239,7 +239,7 @@ export function useSummaryGeneration({
               duration: 4000,
             });
 
-            if (meetingName && onMeetingUpdated) {
+            if (onMeetingUpdated) {
               await onMeetingUpdated();
             }
 
@@ -319,7 +319,7 @@ export function useSummaryGeneration({
             true
           );
 
-          if (meetingName && onMeetingUpdated) {
+          if (onMeetingUpdated) {
             await onMeetingUpdated();
           }
         }

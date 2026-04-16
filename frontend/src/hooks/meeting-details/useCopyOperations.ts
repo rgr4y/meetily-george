@@ -1,6 +1,7 @@
 import { useCallback, RefObject } from 'react';
 import { Transcript, Summary, StructuredSummaryResponse } from '@/types';
 import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import { EditableStructuredSummaryRef } from '@/components/AISummary/EditableStructuredSummary';
 import { toast } from 'sonner';
 import Analytics from '@/lib/analytics';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
@@ -12,7 +13,7 @@ interface UseCopyOperationsProps {
   aiSummary: Summary | null;
   structuredSummary: StructuredSummaryResponse | null;
   summaryMarkdownFromPage: string | null;
-  blockNoteSummaryRef: RefObject<BlockNoteSummaryViewRef>;
+  blockNoteSummaryRef: RefObject<BlockNoteSummaryViewRef | EditableStructuredSummaryRef | null>;
 }
 
 export function useCopyOperations({

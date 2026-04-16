@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Transcript, Summary } from '@/types';
 import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import { EditableStructuredSummaryRef } from '@/components/AISummary/EditableStructuredSummary';
 import { CurrentMeeting, useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
@@ -24,7 +25,7 @@ export function useMeetingData({ meeting, summaryData, onMeetingUpdated }: UseMe
   const [, setError] = useState<string>('');
 
   // Ref for BlockNoteSummaryView
-  const blockNoteSummaryRef = useRef<BlockNoteSummaryViewRef>(null);
+  const blockNoteSummaryRef = useRef<BlockNoteSummaryViewRef | EditableStructuredSummaryRef>(null);
 
   // Sidebar context
   const { setCurrentMeeting, setMeetings, meetings: sidebarMeetings } = useSidebar();

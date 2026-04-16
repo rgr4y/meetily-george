@@ -553,7 +553,7 @@ const Sidebar: React.FC = () => {
 
   const renderItem = (item: SidebarItem, depth = 0) => {
     const isExpanded = expandedFolders.has(item.id);
-    const paddingLeft = `${depth * 12 + 12}px`;
+    const paddingLeft = `${depth * 12 + 3}px`;
     const isActive = item.type === 'file' && currentMeeting?.id === item.id;
     const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
 
@@ -676,7 +676,7 @@ const Sidebar: React.FC = () => {
       </button>
 
       <div
-        className={`h-screen bg-card border-r border-border shadow-sm flex flex-col transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'
+        className={`h-screen bg-card border-r border-border shadow-sm flex flex-col transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'
           }`}
       >
         {/*  Header with traffic light spacing */}
@@ -725,7 +725,8 @@ const Sidebar: React.FC = () => {
             {!isCollapsed && (
               <div
                 onClick={() => router.push('/')}
-                className="p-3  text-lg font-semibold items-center hover:bg-accent h-10   flex mx-3 mt-3 rounded-lg cursor-pointer"
+                className="p-3 text-lg font-semibold items-center hover:bg-accent h-10
+                flex mx-3 mt-3 rounded-lg cursor-pointer"
               >
                 <Home className="w-4 h-4 mr-2" />
                 <span>Home</span>
@@ -777,7 +778,7 @@ const Sidebar: React.FC = () => {
             <button
               onClick={handleRecordingToggle}
               disabled={isRecording}
-              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white ${isRecording ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-lg transition-colors shadow-sm`}
+              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white select-none ${isRecording ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-lg transition-colors shadow-sm`}
             >
               {isRecording ? (
                 <>
@@ -795,7 +796,7 @@ const Sidebar: React.FC = () => {
             {betaFeatures.importAndRetranscribe && (
               <button
                 onClick={() => openImportDialog()}
-                className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-foreground bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors shadow-sm"
+                className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-foreground select-none bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors shadow-sm"
               >
                 <Upload className="w-4 h-4 mr-2" />
                 <span>Import Audio</span>
@@ -804,7 +805,7 @@ const Sidebar: React.FC = () => {
 
             <button
               onClick={() => router.push('/settings')}
-              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-foreground bg-muted hover:bg-accent rounded-lg transition-colors shadow-sm"
+              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-foreground select-none bg-muted hover:bg-accent rounded-lg transition-colors shadow-sm"
             >
               <Settings className="w-4 h-4 mr-2" />
               <span>Settings</span>
