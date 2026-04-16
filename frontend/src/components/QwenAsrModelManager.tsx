@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   QwenAsrModelInfo,
   QwenAsrModelStatus,
@@ -10,6 +11,8 @@ import {
   getQwenAsrModelDisplayInfo,
   getQwenAsrModelDisplayName,
   formatFileSize,
+  getQwenAsrModelRAMRequirement,
+  QWEN_ASR_MODEL_DISPLAY_CONFIG,
 } from '../lib/qwen-asr';
 
 interface QwenAsrModelManagerProps {
@@ -30,6 +33,7 @@ export function QwenAsrModelManager({
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
+  const [memoryGb, setMemoryGb] = useState<number>(16); // Default to 16GB
 
   const onModelSelectRef = useRef(onModelSelect);
   const autoSaveRef = useRef(autoSave);
@@ -47,6 +51,16 @@ export function QwenAsrModelManager({
     const initializeModels = async () => {
       try {
         setLoading(true);
+        
+        // Get hardware profile to determine recommended models
+        try {
+          const hwProfile = await invoke<{ memory_gb: number }>('get_hardware_profile');
+          setMemoryGb(hwProfile.memory_gb);
+        } catch (hwErr) {
+          console.warn('Failed to get hardware profile:', hwErr);
+          // Continue with default (16GB)
+        }
+        
         await QwenAsrAPI.init();
         const modelList = await QwenAsrAPI.getAvailableModels();
         setModels(modelList);
@@ -314,11 +328,14 @@ export function QwenAsrModelManager({
     );
   }
 
-  const recommendedModel = models.find((m) => m.name === 'qwen3-asr-1.7b-q8_0');
-  const otherModels = models.filter((m) => m.name !== 'qwen3-asr-1.7b-q8_0');
+  const recommendedModelName = memoryGb <= 16 ? 'qwen3-asr-0.6b-q8_0' : 'qwen3-asr-1.7b-q8_0';
+  const recommendedModel = models.find((m) => m.name === recommendedModelName);
+  const q8Models = models.filter((m) => m.name !== recommendedModelName && m.name.includes('-q8_0'));
+  const f16Models = models.filter((m) => m.name.includes('-f16'));
 
   return (
     <div className={`space-y-3 ${className}`}>
+      {/* Recommended model */}
       {recommendedModel && (
         <QwenAsrModelCard
           model={recommendedModel}
@@ -334,9 +351,10 @@ export function QwenAsrModelManager({
         />
       )}
 
-      {otherModels.length > 0 && (
+      {/* Other Q8 models */}
+      {q8Models.length > 0 && (
         <div className="space-y-3">
-          {otherModels.map((model) => (
+          {q8Models.map((model) => (
             <QwenAsrModelCard
               key={model.name}
               model={model}
@@ -352,6 +370,36 @@ export function QwenAsrModelManager({
             />
           ))}
         </div>
+      )}
+
+      {/* Advanced F16 models */}
+      {f16Models.length > 0 && (
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="advanced-models">
+            <AccordionTrigger>
+              <span className='text-lg'>Advanced Models</span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-3 pt-4">
+                {f16Models.map((model) => (
+                  <QwenAsrModelCard
+                    key={model.name}
+                    model={model}
+                    isSelected={selectedModel === model.name}
+                    isRecommended={false}
+                    onSelect={() => {
+                      if (model.status === 'Available') selectModel(model.name);
+                    }}
+                    onDownload={() => downloadModel(model.name)}
+                    onCancel={() => cancelDownload(model.name)}
+                    onDelete={() => deleteModel(model.name)}
+                    isDownloading={downloadingModels.has(model.name)}
+                  />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       )}
 
       {selectedModel && (
@@ -379,6 +427,49 @@ interface QwenAsrModelCardProps {
   isDownloading: boolean;
 }
 
+// RAM Badge Component
+interface RAMBadgeProps {
+  ram?: string;
+  recommended?: boolean;
+}
+
+function RAMBadge({ ram, recommended = false }: RAMBadgeProps) {
+  if (!ram) return null;
+  return (
+    <span className={`flex items-center space-x-1 px-2 py-0.5 rounded text-xs font-medium ${
+      recommended 
+        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+        : 'bg-muted text-muted-foreground'
+    }`}>
+      <span>💾</span>
+      <span>{ram}</span>
+    </span>
+  );
+}
+
+// Quantization Badge Component
+interface QuantizationBadgeProps {
+  quantization?: string;
+}
+
+function QuantizationBadge({ quantization }: QuantizationBadgeProps) {
+  if (!quantization) return null;
+  const isQ8 = quantization === 'Q8_0';
+  const isF16 = quantization === 'F16';
+  
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+      isQ8
+        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+        : isF16
+          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+          : 'bg-muted text-muted-foreground'
+    }`}>
+      {quantization}
+    </span>
+  );
+}
+
 function QwenAsrModelCard({
   model,
   isSelected,
@@ -394,6 +485,7 @@ function QwenAsrModelCard({
   const displayName = displayInfo?.friendlyName || model.name;
   const icon = displayInfo?.icon || '🧠';
   const tagline = displayInfo?.tagline || model.description || '';
+  const ram = getQwenAsrModelRAMRequirement(model.name);
 
   const isAvailable = model.status === 'Available';
   const isMissing = model.status === 'Missing';
@@ -448,7 +540,11 @@ function QwenAsrModelCard({
                 </motion.span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground ml-9">{tagline}</p>
+            <p className="text-sm text-muted-foreground ml-9 mb-2">{tagline}</p>
+            <div className="flex items-center gap-2 ml-9">
+              <QuantizationBadge quantization={model.quantization} />
+              <RAMBadge ram={ram} recommended={isRecommended} />
+            </div>
           </div>
 
           <div className="ml-4 flex items-center gap-2">

@@ -1,8 +1,9 @@
 use std::sync::OnceLock;
 use log::info;
+use serde::{Deserialize, Serialize};
 
 /// Hardware capabilities for audio processing optimization
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HardwareProfile {
     pub cpu_cores: u8,
     pub has_gpu_acceleration: bool,
@@ -11,7 +12,7 @@ pub struct HardwareProfile {
     pub performance_tier: PerformanceTier,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GpuType {
     None,
     Metal,      // Apple Silicon
@@ -20,7 +21,7 @@ pub enum GpuType {
     OpenCL,     // Generic GPU compute
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PerformanceTier {
     Low,      // CPU-only, limited resources
     Medium,   // CPU-only but powerful, or basic GPU
@@ -106,13 +107,58 @@ impl HardwareProfile {
 
     /// Detect available system memory in GB
     fn detect_memory_gb() -> u8 {
-        // Simple memory detection - could be enhanced with system-specific calls
-        match std::env::var("MEMORY_GB") {
-            Ok(mem_str) => mem_str.parse().unwrap_or(8),
-            Err(_) => {
-                // Default estimates based on common configurations
-                8 // Conservative default
+        // First check environment override
+        if let Ok(mem_str) = std::env::var("MEMORY_GB") {
+            if let Ok(mem) = mem_str.parse::<u16>() {
+                return mem.min(255) as u8;
             }
+        }
+
+        // Try system-specific detection with error handling
+        let detected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            #[cfg(target_os = "macos")]
+            {
+                if let Ok(output) = std::process::Command::new("sysctl")
+                    .arg("-n")
+                    .arg("hw.memsize")
+                    .output()
+                {
+                    if let Ok(mem_str) = String::from_utf8(output.stdout) {
+                        if let Ok(bytes) = mem_str.trim().parse::<u64>() {
+                            let gb = (bytes / (1024 * 1024 * 1024)) as u8;
+                            if gb > 0 {
+                                return Some(gb.min(255));
+                            }
+                        }
+                    }
+                }
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+                    for line in meminfo.lines() {
+                        if line.starts_with("MemTotal:") {
+                            if let Some(kb_str) = line.split_whitespace().nth(1) {
+                                if let Ok(kb) = kb_str.parse::<u64>() {
+                                    let gb = (kb / (1024 * 1024)) as u8;
+                                    if gb > 0 {
+                                        return Some(gb.min(255));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            None
+        }));
+
+        // If detection succeeded and got a value, use it; otherwise fallback
+        match detected {
+            Ok(Some(gb)) => gb,
+            _ => 8, // Fallback on error, panic, or None
         }
     }
 
@@ -241,6 +287,12 @@ impl HardwareProfile {
             PerformanceTier::Low => data_rate <= 22050,    // Up to 22kHz stereo or 48kHz mono
         }
     }
+}
+
+// Tauri command to expose hardware profile to frontend
+#[tauri::command]
+pub fn get_hardware_profile() -> HardwareProfile {
+    HardwareProfile::detect().clone()
 }
 
 #[cfg(test)]

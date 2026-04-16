@@ -149,9 +149,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 </div> */}
                 <div className="space-y-4 pb-6">
                     <div>
-                        <Label className="block text-sm font-medium text-foreground mb-1">
-                            Transcript Model
-                        </Label>
+                        <h3 className="text-lg font-semibold mb-4">Transcription</h3>
+                        <p className="text-sm text-muted-foreground mb-6">
+                            Choose a transcription engine to convert your meeting audio to text. <strong>Parakeet</strong> is recommended for real-time accuracy with minimal latency. <strong>Qwen3 ASR</strong> excels at multilingual conversations. <strong>Local Whisper</strong> provides high accuracy. <strong>OpenAI</strong> requires an API key but offers reliable cloud-based processing.
+                        </p>
                         <div className="flex space-x-2 mx-1">
                             <Select
                                 value={uiProvider}
@@ -194,7 +195,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     <SelectItem value="elevenLabs">☁️ ElevenLabs</SelectItem>
                                     <SelectItem value="groq">☁️ Groq</SelectItem>
                                     */}
-                                    <SelectItem value="openai">☁️ OpenAI</SelectItem>
+                                    <SelectItem value="openai">☁️ OpenAI (Non-Local)</SelectItem>
                                 </SelectContent>
                             </Select>
 

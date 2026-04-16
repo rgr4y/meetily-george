@@ -9,6 +9,7 @@ export interface QwenAsrModelInfo {
   status: QwenAsrModelStatus;
   description: string;
   quantization: QwenAsrQuantizationType;
+    ramRequirement?: string;
 }
 
 export type QwenAsrQuantizationType = 'Q8_0' | 'F16';
@@ -26,29 +27,32 @@ export interface QwenAsrModelDisplayInfo {
   icon: string;
   tagline: string;
   recommended?: boolean;
+    ramRequirement?: string;
 }
 
 export const QWEN_ASR_MODEL_DISPLAY_CONFIG: Record<string, QwenAsrModelDisplayInfo> = {
   'qwen3-asr-1.7b-q8_0': {
-    friendlyName: 'Qwen3 ASR 1.7B (Q8)',
+        friendlyName: 'Qwen3 ASR 1.7B',
     icon: '🧠',
     tagline: 'Multilingual • 1.7B • Recommended quality/speed balance',
     recommended: true,
+        ramRequirement: '4-5GB',
   },
   'qwen3-asr-1.7b-f16': {
-    friendlyName: 'Qwen3 ASR 1.7B (F16)',
+      friendlyName: 'Qwen3 ASR 1.7B',
     icon: '🎯',
     tagline: 'Multilingual • 1.7B • Highest accuracy',
+      ramRequirement: '6-7GB',
   },
   'qwen3-asr-0.6b-q8_0': {
-    friendlyName: 'Qwen3 ASR 0.6B (Q8)',
+      friendlyName: 'Qwen3 ASR 0.6B',
     icon: '⚡',
     tagline: 'Multilingual • 0.6B • Faster and lighter',
+      ramRequirement: '2-3GB',
   },
   'qwen3-asr-0.6b-f16': {
-    friendlyName: 'Qwen3 ASR 0.6B (F16)',
-    icon: '📦',
-    tagline: 'Multilingual • 0.6B • Higher quality than 0.6B Q8',
+      friendlyName: 'Qwen3 ASR 0.6B',
+      ramRequirement: '3-4GB',
   },
 };
 
@@ -59,6 +63,11 @@ export function getQwenAsrModelDisplayInfo(modelName: string): QwenAsrModelDispl
 export function getQwenAsrModelDisplayName(modelName: string): string {
   const info = QWEN_ASR_MODEL_DISPLAY_CONFIG[modelName];
   return info?.friendlyName || modelName;
+}
+
+export function getQwenAsrModelRAMRequirement(modelName: string): string | undefined {
+    const info = QWEN_ASR_MODEL_DISPLAY_CONFIG[modelName];
+    return info?.ramRequirement;
 }
 
 export function formatFileSize(sizeMb: number): string {

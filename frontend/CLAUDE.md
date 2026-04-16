@@ -1,0 +1,1 @@
+- Currently running: `watch dev` (frontend dev server with hot reload). Don't build. Just lint.

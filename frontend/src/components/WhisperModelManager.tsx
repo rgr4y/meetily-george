@@ -11,8 +11,29 @@ import {
   getModelPerformanceBadge,
   isQuantizedModel,
   getModelTagline,
-  WhisperAPI
+  WhisperAPI,
+  MODEL_CONFIGS
 } from '../lib/whisper';
+
+// RAM Badge Component
+interface RAMBadgeProps {
+  ram?: string;
+  recommended?: boolean;
+}
+
+function RAMBadge({ ram, recommended = false }: RAMBadgeProps) {
+  if (!ram) return null;
+  return (
+    <span className={`flex items-center space-x-1 ${
+      recommended 
+        ? 'text-green-600 dark:text-green-400' 
+        : 'text-muted-foreground'
+    }`}>
+      <span>💾</span>
+      <span>{ram}</span>
+    </span>
+  );
+}
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface ModelManagerProps {
@@ -77,9 +98,16 @@ export function ModelManager({
         await WhisperAPI.init();
         const modelList = await WhisperAPI.getAvailableModels();
 
+        // Merge MODEL_CONFIGS descriptions into the model list
+        const modelsWithConfig = modelList.map(model => ({
+          ...model,
+          description: MODEL_CONFIGS[model.name]?.description || model.description,
+          ramRequirement: MODEL_CONFIGS[model.name]?.ramRequirement || model.ramRequirement
+        }));
+
         // Apply persisted downloading states
         const persistedDownloading = getPersistedDownloadingModels();
-        const modelsWithDownloadState = modelList.map(model => {
+        const modelsWithDownloadState = modelsWithConfig.map(model => {
           if (persistedDownloading.has(model.name) && model.status !== 'Available') {
             if (typeof model.status === 'object' && 'Corrupted' in model.status) {
               updateDownloadingModels(prev => {
@@ -351,9 +379,14 @@ export function ModelManager({
     try {
       await WhisperAPI.deleteCorruptedModel(modelName);
 
-      // Refresh models list
+      // Refresh models list with descriptions and RAM
       const modelList = await WhisperAPI.getAvailableModels();
-      setModels(modelList);
+      const modelsWithConfig = modelList.map(model => ({
+        ...model,
+        description: MODEL_CONFIGS[model.name]?.description || model.description,
+        ramRequirement: MODEL_CONFIGS[model.name]?.ramRequirement || model.ramRequirement
+      }));
+      setModels(modelsWithConfig);
 
       toast.success(`${displayName} deleted`, {
         description: 'Model removed to free up space',
@@ -570,17 +603,25 @@ function ModelCard({
                   ✓
                 </motion.span>
               )}
-              {isQuantizedModel(model.name) && (
-                <span className={`px-2 py-0.5 rounded-full text-xs ${getModelPerformanceBadge(model.name).color === 'green'
+              <span className={`px-2 py-0.5 rounded-full text-xs ${
+                getModelPerformanceBadge(model.name).color === 'green'
                   ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                   : getModelPerformanceBadge(model.name).color === 'orange'
                     ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
-                    : 'bg-muted text-muted-foreground'
-                  }`}>
-                  {getModelPerformanceBadge(model.name).label}
-                </span>
-              )}
+                    : getModelPerformanceBadge(model.name).color === 'blue'
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                      : 'bg-muted text-muted-foreground'
+              }`}>
+                {getModelPerformanceBadge(model.name).label}
+              </span>
             </div>
+
+            {/* Description with RAM requirements */}
+            {model.description && (
+              <p className="text-xs text-muted-foreground ml-9 mb-2">
+                {model.description}
+              </p>
+            )}
 
             {/* Model Specs */}
             <div className="flex items-center space-x-4 text-sm text-muted-foreground ml-9 mt-1.5">
@@ -596,6 +637,7 @@ function ModelCard({
                 <span>⚡</span>
                 <span>{model.speed} processing</span>
               </span>
+              <RAMBadge ram={model.ramRequirement} recommended={model.name === 'small'} />
             </div>
           </div>
 

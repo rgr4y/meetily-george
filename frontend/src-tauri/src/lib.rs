@@ -605,6 +605,7 @@ pub fn run() {
             whisper_engine::parallel_commands::calculate_optimal_workers,
             whisper_engine::parallel_commands::prepare_audio_chunks,
             whisper_engine::parallel_commands::test_parallel_processing_setup,
+            audio::hardware_detector::get_hardware_profile,
             get_audio_devices,
             trigger_microphone_permission,
             start_recording_with_devices,

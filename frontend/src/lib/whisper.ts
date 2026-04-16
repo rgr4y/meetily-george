@@ -7,6 +7,7 @@ export interface ModelInfo {
   speed: ProcessingSpeed;
   status: ModelStatus;
   description?: string;
+    ramRequirement?: string;
 }
 
 export type ModelAccuracy = 'High' | 'Good' | 'Decent';
@@ -53,36 +54,42 @@ export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
   // Standard f16 models (full precision)
   'large-v3': {
     description: 'Highest accuracy, best for important meetings. Slower processing.',
+        ramRequirement: '10-12GB',
     size_mb: 2951,
     accuracy: 'High',
     speed: 'Slow'
   },
   'large-v3-turbo': {
     description: 'Best accuracy with improved speed.',
+      ramRequirement: '10-12GB',
     size_mb: 1549,
     accuracy: 'High',
     speed: 'Medium'
   },
   'medium': {
     description: 'Balanced accuracy and speed. Good for most use cases.',
+      ramRequirement: '8-10GB',
     size_mb: 1463,
     accuracy: 'High',
     speed: 'Slow'
   },
   'small': {
-    description: 'Fast processing with good quality. Great for quick transcription.',
+      description: 'Fast processing with good quality. Recommended for most laptops.',
+      ramRequirement: '4-6GB',
     size_mb: 466,
     accuracy: 'Good',
     speed: 'Medium'
   },
   'base': {
-    description: 'Good balance of speed and accuracy.',
+      description: 'Good balance of speed and accuracy. Great for lower-end machines.',
+      ramRequirement: '2-3GB',
     size_mb: 142,
     accuracy: 'Good',
     speed: 'Fast'
   },
   'tiny': {
-    description: 'Fastest processing, good for real-time use.',
+      description: 'Fastest processing, good for real-time use. Ideal for older machines.',
+      ramRequirement: '1-2GB',
     size_mb: 39,
     accuracy: 'Decent',
     speed: 'Very Fast'
@@ -91,18 +98,21 @@ export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
   // Q5_1 quantized models (balanced speed/accuracy, slightly better quality than Q5_0)
   'tiny-q5_1': {
     description: 'Quantized tiny model, ~50% faster processing.',
+      ramRequirement: '1-2GB',
     size_mb: 31,
     accuracy: 'Decent',
     speed: 'Very Fast'
   },
   'base-q5_1': {
     description: 'Quantized base model, good speed/accuracy balance.',
+      ramRequirement: '2GB',
     size_mb: 57,
     accuracy: 'Good',
     speed: 'Fast'
   },
   'small-q5_1': {
     description: 'Quantized small model, faster than f16 version.',
+      ramRequirement: '2-3GB',
     size_mb: 181,
     accuracy: 'Good',
     speed: 'Fast'
@@ -111,18 +121,21 @@ export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
   // Q5_0 quantized models (balanced speed/accuracy)
   'medium-q5_0': {
     description: 'Quantized medium model, professional quality with better speed.',
+      ramRequirement: '4-5GB',
     size_mb: 514,
     accuracy: 'High',
     speed: 'Medium'
   },
   'large-v3-turbo-q5_0': {
     description: 'Quantized large turbo model, best balance.',
+      ramRequirement: '5-7GB',
     size_mb: 547,
     accuracy: 'High',
     speed: 'Medium'
   },
   'large-v3-q5_0': {
     description: 'Quantized large model, best balance of speed and accuracy.',
+      ramRequirement: '6-8GB',
     size_mb: 1031,
     accuracy: 'High',
     speed: 'Slow'
