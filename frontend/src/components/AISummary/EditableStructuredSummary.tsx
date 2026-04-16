@@ -415,7 +415,18 @@ export const EditableStructuredSummary = forwardRef<EditableStructuredSummaryRef
               </div>
             </AccordionTrigger>
             <AccordionContent className="pt-0 pb-4">
-              <div className="overflow-auto rounded-lg bg-muted p-3 max-h-96">
+              <div
+                className="overflow-auto rounded-lg bg-muted p-3 max-h-96"
+                ref={(el) => {
+                  if (!el) return;
+                  const observer = new ResizeObserver(() => {
+                    const current = el.scrollHeight;
+                    const prev = parseInt(el.style.minHeight || '0', 10);
+                    if (current > prev) el.style.minHeight = `${current}px`;
+                  });
+                  observer.observe(el);
+                }}
+              >
                 <ReactJsonView
                   src={{
                     summary: structuredSummary.summary,
