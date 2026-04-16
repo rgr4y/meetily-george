@@ -4,6 +4,20 @@ use serde_json::Value;
 use sqlx::SqlitePool;
 use tracing::{error, info as log_info};
 
+/// Row type for structured summary fields on summary_processes.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StructuredSummaryRow {
+    pub summary_text: Option<String>,
+    pub key_points: Option<String>,
+    pub action_items: Option<String>,
+    pub decisions: Option<String>,
+}
+
+/// Serialize a Vec<String> to a JSON array string for storage.
+fn vec_to_json(items: &[String]) -> String {
+    serde_json::to_string(items).unwrap_or_else(|_| "[]".to_string())
+}
+
 pub struct SummaryProcessesRepository;
 
 impl SummaryProcessesRepository {
@@ -217,5 +231,51 @@ impl SummaryProcessesRepository {
             meeting_id
         );
         Ok(())
+    }
+
+    /// Saves structured summary fields (summary_text, key_points, action_items, decisions)
+    /// to the summary_processes row for a meeting.
+    pub async fn save_structured_fields(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        summary_text: Option<&str>,
+        key_points: &[String],
+        action_items: &[String],
+        decisions: &[String],
+    ) -> Result<u64, sqlx::Error> {
+        let key_points_json = vec_to_json(key_points);
+        let action_items_json = vec_to_json(action_items);
+        let decisions_json = vec_to_json(decisions);
+
+        let result = sqlx::query(
+            "UPDATE summary_processes SET summary_text = ?, key_points = ?, action_items = ?, decisions = ? WHERE meeting_id = ?",
+        )
+        .bind(summary_text)
+        .bind(&key_points_json)
+        .bind(&action_items_json)
+        .bind(&decisions_json)
+        .bind(meeting_id)
+        .execute(pool)
+        .await?;
+
+        let rows = result.rows_affected();
+        log_info!(
+            "Updated structured summary on summary_processes for meeting {} ({} rows)",
+            meeting_id, rows
+        );
+        Ok(rows)
+    }
+
+    /// Retrieves structured summary fields from summary_processes for a meeting.
+    pub async fn get_structured_fields(
+        pool: &SqlitePool,
+        meeting_id: &str,
+    ) -> Result<Option<StructuredSummaryRow>, sqlx::Error> {
+        sqlx::query_as::<_, StructuredSummaryRow>(
+            "SELECT summary_text, key_points, action_items, decisions FROM summary_processes WHERE meeting_id = ?",
+        )
+        .bind(meeting_id)
+        .fetch_optional(pool)
+        .await
     }
 }

@@ -1,8 +1,6 @@
 use crate::api::{TranscriptSearchResult, TranscriptSegment};
-use chrono::Utc;
-use sqlx::{Connection, Error as SqlxError, SqlitePool};
-use tracing::{error, info};
-use uuid::Uuid;
+use sqlx::{Error as SqlxError, SqlitePool};
+use tracing::info;
 
 /// Serialize a Vec<String> to a JSON array string for storage.
 fn vec_to_json(items: &[String]) -> String {
@@ -21,78 +19,22 @@ pub struct StructuredSummaryRow {
 
 impl TranscriptsRepository {
     /// Saves a new meeting and its associated transcript segments.
-    /// This function uses a transaction to ensure that either both the meeting
-    /// and all its transcripts are saved, or none of them are.
+    /// Delegates to the shared `meeting_io::create_meeting` implementation.
     pub async fn save_transcript(
         pool: &SqlitePool,
         meeting_title: &str,
         transcripts: &[TranscriptSegment],
         folder_path: Option<String>,
     ) -> Result<String, SqlxError> {
-        let meeting_id = format!("meeting-{}", Uuid::new_v4());
-
-        let mut conn = pool.acquire().await?;
-        let mut transaction = conn.begin().await?;
-
-        let now = Utc::now();
-
-        // 1. Create the new meeting
-        let result = sqlx::query(
-            "INSERT INTO meetings (id, title, created_at, updated_at, folder_path) VALUES (?, ?, ?, ?, ?)",
+        crate::audio::meeting_io::create_meeting(
+            pool,
+            meeting_title,
+            transcripts,
+            folder_path.as_deref(),
+            None, // use current time
         )
-        .bind(&meeting_id)
-        .bind(meeting_title)
-        .bind(now)
-        .bind(now)
-        .bind(&folder_path)
-        .execute(&mut *transaction)
-        .await;
-
-        if let Err(e) = result {
-            error!("Failed to create meeting '{}': {}", meeting_title, e);
-            transaction.rollback().await?;
-            return Err(e);
-        }
-
-        info!("Successfully created meeting with id: {}", meeting_id);
-
-        // 2. Save each transcript segment with audio timing fields
-        for segment in transcripts {
-            let transcript_id = format!("transcript-{}", Uuid::new_v4());
-            let result = sqlx::query(
-                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
-            )
-            .bind(&transcript_id)
-            .bind(&meeting_id)
-            .bind(&segment.text)
-            .bind(&segment.timestamp)
-            .bind(segment.audio_start_time)
-            .bind(segment.audio_end_time)
-            .bind(segment.duration)
-            .execute(&mut *transaction)
-            .await;
-
-            if let Err(e) = result {
-                error!(
-                    "Failed to save transcript segment for meeting {}: {}",
-                    meeting_id, e
-                );
-                transaction.rollback().await?;
-                return Err(e);
-            }
-        }
-
-        info!(
-            "Successfully saved {} transcript segments for meeting {}",
-            transcripts.len(),
-            meeting_id
-        );
-
-        // Commit the transaction
-        transaction.commit().await?;
-
-        Ok(meeting_id)
+        .await
+        .map_err(|e| SqlxError::Protocol(format!("{}", e)))
     }
 
     /// Searches for a query string within the transcripts.
@@ -190,38 +132,6 @@ impl TranscriptsRepository {
         }
     }
 
-    /// Saves structured summary fields to the latest transcript row for the meeting.
-    pub async fn save_structured_summary(
-        pool: &SqlitePool,
-        meeting_id: &str,
-        summary: &str,
-        key_points: &str,
-        action_items: &str,
-        decisions: &str,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"
-            UPDATE transcripts
-            SET summary = ?, key_points = ?, action_items = ?, decisions = ?
-            WHERE id = (
-                SELECT id
-                FROM transcripts
-                WHERE meeting_id = ?
-                ORDER BY COALESCE(audio_start_time, 0) DESC, timestamp DESC
-                LIMIT 1
-            )
-            "#,
-        )
-        .bind(summary)
-        .bind(key_points)
-        .bind(action_items)
-        .bind(decisions)
-        .bind(meeting_id)
-        .execute(pool)
-        .await?;
-
-        Ok(())
-    }
 
     /// Retrieves structured summary fields from the latest transcript row for a meeting.
     pub async fn get_structured_summary(
