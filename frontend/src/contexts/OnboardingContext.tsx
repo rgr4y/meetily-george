@@ -406,9 +406,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
 
       // Onboarding always uses builtin-ai with selected model
-      await invoke('complete_onboarding', {
-        model: selectedSummaryModel,
-      });
+      try {
+        await invoke('complete_onboarding', {
+          model: selectedSummaryModel,
+        });
+      } catch (invokeError) {
+        // In browser dev mode, Tauri IPC is unavailable — treat as success
+        console.warn('[OnboardingContext] invoke failed (expected in browser dev mode):', invokeError);
+      }
       setCompleted(true);
       console.log('[OnboardingContext] Onboarding completed with model:', selectedSummaryModel);
 

@@ -130,6 +130,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [error, setError] = useState<string>('');
 
+  // Tracks whether the saved model config has been loaded from the DB.
+  // The Ollama effect must not run until after this is true, otherwise
+  // the hardcoded initial provider='ollama' causes a spurious connection attempt.
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+
   // Device configuration state
   const [selectedDevices, setSelectedDevices] = useState<SelectedDevices>({
     micDevice: null,
@@ -175,9 +180,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const preferencesLoadedRef = useRef(false);
   const isLoadingRef = useRef(false);
 
-  // Load Ollama models only when provider is ollama (avoids noisy errors when Ollama isn't installed)
+  // Load Ollama models only when provider is ollama (avoids noisy errors when Ollama isn't installed).
+  // isConfigLoaded guard prevents firing before the saved config is fetched from DB.
   useEffect(() => {
-    if (modelConfig.provider !== 'ollama') {
+    if (!isConfigLoaded || modelConfig.provider !== 'ollama') {
       return;
     }
     const loadModels = async () => {
@@ -192,7 +198,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       }
     };
     loadModels();
-  }, [modelConfig.provider, modelConfig.ollamaEndpoint]);
+  }, [isConfigLoaded, modelConfig.provider, modelConfig.ollamaEndpoint]);
 
   // Load transcript configuration on mount
   useEffect(() => {
@@ -289,6 +295,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to fetch saved model config in ConfigContext:', error);
+      } finally {
+        setIsConfigLoaded(true);
       }
     };
     fetchModelConfig();
