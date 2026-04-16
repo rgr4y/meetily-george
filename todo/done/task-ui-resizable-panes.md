@@ -1,6 +1,6 @@
 # Task: Resizable Panes on Meeting Details
 
-status: pending
+status: completed
 epic: none
 depends_on: none
 
