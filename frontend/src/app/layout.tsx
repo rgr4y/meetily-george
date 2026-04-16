@@ -299,12 +299,18 @@ export default function RootLayout({
     window.location.reload()
   }
 
-  // Banner popup window: render children directly without providers/sidebar
+  // Banner popup window: render children with theme provider but without sidebar/main providers
   if (isOverlayWindow) {
     return (
-      <html lang="en" style={{ background: 'transparent' }}>
+      <html lang="en" suppressHydrationWarning style={{ background: 'transparent' }}>
+        {/* Blocking inline script: applies theme class before first paint */}
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('themePreference');var sys=window.matchMedia('(prefers-color-scheme: dark)').matches;var dark=(p==='dark')||(p!=='light'&&sys);if(dark){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}else{document.documentElement.style.colorScheme='light';}}catch(e){}})();` }} />
+        </head>
         <body className={`${fontInter.variable} font-sans antialiased`} style={{ background: 'transparent' }}>
-          {children}
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
         </body>
       </html>
     )

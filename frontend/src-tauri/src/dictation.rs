@@ -976,7 +976,12 @@ fn clean_qwen_asr_output(text: &str) -> String {
         return cleaned;
     }
 
+    let before_lang = cleaned.clone();
     cleaned = LANGUAGE_PREFIX_RE.replace_all(&cleaned, "").into_owned();
+    if before_lang != cleaned {
+        log::debug!("Dictation: Stripped language prefix from qwenAsr output");
+    }
+    
     loop {
         let next = LANGUAGE_SENTENCE_PREFIX_RE
             .replace_all(&cleaned, "$1")
@@ -992,8 +997,11 @@ fn clean_qwen_asr_output(text: &str) -> String {
 
 fn normalize_transcript(provider: &str, text: &str) -> String {
     let normalized = if provider == "qwenAsr" {
-        clean_qwen_asr_output(text)
+        let output = clean_qwen_asr_output(text);
+        log::debug!("Dictation: qwenAsr normalization - input: '{}' -> output: '{}'", text, output);
+        output
     } else {
+        log::debug!("Dictation: {} transcription output: '{}'", provider, text);
         text.to_string()
     };
     normalized.trim().to_string()
@@ -1012,39 +1020,66 @@ async fn transcribe_audio<R: Runtime>(app: &AppHandle<R>, samples_16k: Vec<f32>)
         .map(|cfg| cfg.provider.as_str())
         .unwrap_or("parakeet");
 
+    log::info!("Dictation: Starting transcription with provider: {}", provider);
+
     let result = match provider {
-        "localWhisper" => crate::whisper_engine::commands::whisper_transcribe_audio(samples_16k.clone()).await,
-        "qwenAsr" => crate::qwen_asr_engine::commands::qwen_asr_transcribe_audio(samples_16k.clone()).await,
-        "parakeet" => crate::parakeet_engine::commands::parakeet_transcribe_audio(samples_16k.clone()).await,
-        _ => crate::parakeet_engine::commands::parakeet_transcribe_audio(samples_16k.clone()).await,
+        "localWhisper" => {
+            log::debug!("Dictation: Using localWhisper");
+            crate::whisper_engine::commands::whisper_transcribe_audio(samples_16k.clone()).await
+        }
+        "qwenAsr" => {
+            log::debug!("Dictation: Using qwenAsr");
+            crate::qwen_asr_engine::commands::qwen_asr_transcribe_audio(samples_16k.clone()).await
+        }
+        "parakeet" => {
+            log::debug!("Dictation: Using parakeet");
+            crate::parakeet_engine::commands::parakeet_transcribe_audio(samples_16k.clone()).await
+        }
+        _ => {
+            log::warn!("Dictation: Unknown provider '{}', falling back to parakeet", provider);
+            crate::parakeet_engine::commands::parakeet_transcribe_audio(samples_16k.clone()).await
+        }
     };
 
     match result {
         Ok(text) => {
+            // Log raw output BEFORE any processing
+            log::info!("Dictation: Raw bytes from {}: len={}, content={:?}", provider, text.len(), text);
             let cleaned = normalize_transcript(provider, &text);
+            log::info!("Dictation: After normalization: len={}, content={:?}", cleaned.len(), cleaned);
             if !cleaned.is_empty() {
+                log::info!("Dictation: Final transcription: '{}'", cleaned);
                 return Ok(cleaned);
             }
+            log::warn!("Dictation: Transcription returned empty after normalization");
             Err("Transcription returned empty text".to_string())
         }
         Err(primary_err) => {
+            log::warn!("Dictation: {} transcription failed: {}", provider, primary_err);
             // Fallback sequence for robustness
+            log::info!("Dictation: Trying qwenAsr fallback...");
             let fallback_qwen = crate::qwen_asr_engine::commands::qwen_asr_transcribe_audio(samples_16k.clone()).await;
             if let Ok(text) = fallback_qwen {
+                log::debug!("Dictation: qwenAsr fallback succeeded: '{}'", text);
                 let cleaned = normalize_transcript("qwenAsr", &text);
                 if !cleaned.is_empty() {
+                    log::info!("Dictation: Using qwenAsr fallback result: '{}'", cleaned);
                     return Ok(cleaned);
                 }
             }
 
+            log::info!("Dictation: Trying whisper fallback...");
             let fallback_whisper = crate::whisper_engine::commands::whisper_transcribe_audio(samples_16k.clone()).await;
             if let Ok(text) = fallback_whisper {
+                log::debug!("Dictation: Whisper fallback succeeded: '{}'", text);
                 let cleaned = normalize_transcript("localWhisper", &text);
                 if !cleaned.is_empty() {
+                    log::info!("Dictation: Using whisper fallback result: '{}'", cleaned);
                     return Ok(cleaned);
                 }
             }
 
+            log::error!("Dictation: All transcription engines failed. Primary: {}", primary_err);
             Err(format!("Transcription failed: {primary_err}"))
         }
     }
@@ -1126,16 +1161,31 @@ fn paste_via_temporary_clipboard(_text: &str) -> Result<(), String> {
 
 async fn finish_dictation<R: Runtime>(app: AppHandle<R>, captured: CapturedAudio) {
     let process_result = async {
+        log::debug!("Dictation: finish_dictation - captured {} samples at {} Hz", 
+            captured.samples.len(), captured.sample_rate);
+
         if captured.samples.len() < (captured.sample_rate as usize / 5) {
-            return Err("Audio too short, please hold the hotkey longer".to_string());
+            let msg = "Audio too short, please hold the hotkey longer".to_string();
+            log::warn!("Dictation: {}", msg);
+            return Err(msg);
         }
 
         let speech = normalize_and_extract_speech(captured);
+        log::debug!("Dictation: After speech extraction: {} samples", speech.len());
+        
         if speech.len() < 2_400 {
-            return Err("No clear speech detected".to_string());
+            let msg = "No clear speech detected".to_string();
+            log::warn!("Dictation: {}", msg);
+            return Err(msg);
         }
 
-        let text = transcribe_audio(&app, speech).await?;
+        let text = match transcribe_audio(&app, speech).await {
+            Ok(t) => t,
+            Err(e) => {
+                log::error!("Dictation: Transcription error: {}", e);
+                return Err(e);
+            }
+        };
 
         if let Ok(mut last) = LAST_TRANSCRIPT.lock() {
             *last = Some(text.clone());
@@ -1143,9 +1193,11 @@ async fn finish_dictation<R: Runtime>(app: AppHandle<R>, captured: CapturedAudio
 
         match paste_via_temporary_clipboard(&text) {
             Ok(_) => {
+                log::info!("Dictation: Successfully pasted result");
                 emit_widget_state(&app, "success", "Transcribed and pasted", Some(text.clone()));
             }
             Err(e) => {
+                log::warn!("Dictation: Paste failed: {}", e);
                 emit_widget_state(
                     &app,
                     "success",
@@ -1160,6 +1212,7 @@ async fn finish_dictation<R: Runtime>(app: AppHandle<R>, captured: CapturedAudio
     .await;
 
     if let Err(e) = process_result {
+        log::error!("Dictation: finish_dictation error: {}", e);
         emit_widget_state(&app, "error", &e, None);
     }
 
@@ -1173,18 +1226,22 @@ pub async fn start_dictation<R: Runtime>(app: AppHandle<R>) -> Result<(), String
     }
 
     if DICTATION_ACTIVE.swap(true, Ordering::SeqCst) {
+        log::debug!("Dictation: Already active, ignoring duplicate start");
         return Ok(());
     }
 
     DICTATION_PREWARMING.store(false, Ordering::SeqCst);
 
+    log::info!("Dictation: Starting microphone capture");
     match start_microphone_capture() {
         Ok(_) => {
+            log::debug!("Dictation: Microphone capture started successfully");
             ensure_widget_window(&app);
             emit_widget_state(&app, "recording", "Listening... release hotkey to transcribe", None);
             Ok(())
         }
         Err(e) => {
+            log::error!("Dictation: Failed to start microphone capture: {}", e);
             DICTATION_ACTIVE.store(false, Ordering::SeqCst);
             ensure_widget_window(&app);
             emit_widget_state(&app, "error", &e, None);
@@ -1196,9 +1253,11 @@ pub async fn start_dictation<R: Runtime>(app: AppHandle<R>) -> Result<(), String
 
 pub async fn stop_dictation<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     if !DICTATION_ACTIVE.swap(false, Ordering::SeqCst) {
+        log::debug!("Dictation: Not active, ignoring duplicate stop");
         return Ok(());
     }
 
+    log::info!("Dictation: Stopping and transcribing");
     DICTATION_PROCESSING.store(true, Ordering::SeqCst);
     DICTATION_PREWARMING.store(false, Ordering::SeqCst);
     emit_widget_state(&app, "processing", "Transcribing...", None);

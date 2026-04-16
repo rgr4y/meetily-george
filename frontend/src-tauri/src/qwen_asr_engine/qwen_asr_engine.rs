@@ -362,17 +362,30 @@ impl QwenAsrEngine {
         let language_hint = crate::qwen_asr_engine::normalize_language_hint(language.as_deref());
 
         let duration_seconds = audio_data.len() as f64 / 16000.0;
-        log::debug!(
-            "Qwen ASR transcribing {} samples ({:.1}s duration, language hint: {:?})",
-            audio_data.len(),
-            duration_seconds,
-            language_hint
-        );
+        if crate::qwen_asr_engine::qwen_debug_logging_enabled() {
+            log::info!(
+                "Qwen ASR transcribing {} samples ({:.1}s duration, language hint: {:?})",
+                audio_data.len(),
+                duration_seconds,
+                language_hint
+            );
+        } else {
+            log::debug!(
+                "Qwen ASR transcribing {} samples ({:.1}s duration, language hint: {:?})",
+                audio_data.len(),
+                duration_seconds,
+                language_hint
+            );
+        }
 
         let result = model
             .transcribe(&audio_data, language_hint.as_deref())
             .map_err(|e| anyhow!("Qwen ASR transcription failed: {}", e))?;
 
+        if crate::qwen_asr_engine::qwen_debug_logging_enabled() {
+            // Log with debug format to see any hidden chars
+            log::info!("Qwen ASR raw result: len={}, content={:?}", result.len(), result);
+        }
         log::debug!("Qwen ASR transcription result: '{}'", result);
         Ok(result)
     }

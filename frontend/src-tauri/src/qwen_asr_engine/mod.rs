@@ -36,8 +36,20 @@ static QWEN_PROMPT_LOGGING_ENABLED: LazyLock<bool> = LazyLock::new(|| {
 		.unwrap_or(false)
 });
 
+static QWEN_DEBUG_LOGGING_ENABLED: LazyLock<bool> = LazyLock::new(|| {
+	std::env::args_os().any(|arg| {
+		arg == OsStr::new("--qwen-debug") || arg == OsStr::new("--qwen3-debug")
+	}) || std::env::var("MEETILY_QWEN_DEBUG")
+		.map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+		.unwrap_or(false)
+});
+
 pub fn qwen_prompt_logging_enabled() -> bool {
 	*QWEN_PROMPT_LOGGING_ENABLED
+}
+
+pub fn qwen_debug_logging_enabled() -> bool {
+	*QWEN_DEBUG_LOGGING_ENABLED
 }
 
 pub fn format_qwen_prompt_preview(language: Option<&str>, audio_samples: usize) -> String {
