@@ -4,6 +4,7 @@ import { FolderOpen, Keyboard, RotateCcw } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { DeviceSelection, SelectedDevices } from '@/components/DeviceSelection';
 import Analytics from '@/lib/analytics';
+import { getPlatform } from '@/lib/platform';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -191,8 +192,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
 
   const detectIsMacOS = async (): Promise<boolean> => {
     try {
-      const { platform } = await import('@tauri-apps/plugin-os');
-      const mac = platform() === 'macos';
+      const mac = (await getPlatform()) === 'macos';
       setIsMacOS(mac);
       return mac;
     } catch (error) {
@@ -554,55 +554,6 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         />
       </div>
 
-      {/* Folder Location - Only shown when auto_save is enabled */}
-      {preferences.auto_save && (
-        <div className="space-y-4">
-          <div className="p-4 border rounded-lg bg-muted">
-            <div className="font-medium mb-2">Save Location</div>
-            <div className="text-sm text-muted-foreground mb-3 break-all">
-              {preferences.save_folder || 'Default folder'}
-            </div>
-            <div className="flex items-center gap-2 mt-3">
-              <button
-                onClick={handleOpenFolder}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Open Folder
-              </button>
-              <button
-                onClick={handleChangeFolder}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Change Location
-              </button>
-              <button
-                onClick={handleScanFolder}
-                disabled={isScanning}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                {isScanning ? (
-                  <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <FolderOpen className="w-4 h-4" />
-                )}
-                {isScanning ? 'Scanning...' : 'Scan for Recordings'}
-              </button>
-            </div>
-          </div>
-
-          <div className="p-4 border rounded-lg bg-accent rounded-md border border-border">
-            <div className="text-sm text-accent-foreground">
-              <strong>File Format:</strong> {preferences.file_format.toUpperCase()} files
-            </div>
-            <div className="text-xs text-accent-foreground mt-1">
-              Recordings are saved with timestamp: recording_YYYYMMDD_HHMMSS.{preferences.file_format}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Info when auto_save is disabled */}
       {!preferences.auto_save && (
         <div className="p-4 border border-border rounded-lg bg-accent">
@@ -747,6 +698,55 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
           </div>
         </div>
       </div>
+      
+      {/* Folder Location - Only shown when auto_save is enabled */}
+      {preferences.auto_save && (
+        <div className="space-y-4">
+          <div className="p-4 border rounded-lg bg-muted">
+            <div className="font-medium mb-2">Save Location</div>
+            <div className="text-sm text-muted-foreground mb-3 break-all">
+              {preferences.save_folder || 'Default folder'}
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={handleOpenFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Open Folder
+              </button>
+              <button
+                onClick={handleChangeFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Change Location
+              </button>
+              <button
+                onClick={handleScanFolder}
+                disabled={isScanning}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                {isScanning ? (
+                  <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FolderOpen className="w-4 h-4" />
+                )}
+                {isScanning ? 'Scanning...' : 'Scan for Recordings'}
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 border rounded-lg bg-accent rounded-md border border-border">
+            <div className="text-sm text-accent-foreground">
+              <strong>File Format:</strong> {preferences.file_format.toUpperCase()} files
+            </div>
+            <div className="text-xs text-accent-foreground mt-1">
+              Recordings are saved with timestamp: recording_YYYYMMDD_HHMMSS.{preferences.file_format}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

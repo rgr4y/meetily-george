@@ -4,6 +4,7 @@ import { Download, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import { getPlatform } from '@/lib/platform';
 import {
   Tooltip,
   TooltipContent,
@@ -33,12 +34,7 @@ export function SetupOverviewStep() {
 
     // Detect platform for totalSteps
     const checkPlatform = async () => {
-      try {
-        const { platform } = await import('@tauri-apps/plugin-os');
-        setIsMac(platform() === 'macos');
-      } catch (e) {
-        setIsMac(navigator.userAgent.includes('Mac'));
-      }
+      setIsMac((await getPlatform()) === 'macos');
     };
     checkPlatform();
   }, []);
