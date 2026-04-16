@@ -2,6 +2,7 @@
 
 import './globals.css'
 import { Source_Sans_3 } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import MainContent from '@/components/MainContent'
@@ -28,10 +29,16 @@ import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 
-const sourceSans3 = Source_Sans_3({
+// const sourceSans3 = Source_Sans_3({
+//   subsets: ['latin'],
+//   weight: ['400', '500', '600', '700'],
+//   variable: '--font-inter',
+// })
+
+const fontInter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-source-sans-3',
+  variable: '--font-inter',
 })
 
 // Module-level component — stable reference across RootLayout re-renders.
@@ -296,7 +303,7 @@ export default function RootLayout({
   if (isOverlayWindow) {
     return (
       <html lang="en" style={{ background: 'transparent' }}>
-        <body className={`${sourceSans3.variable} font-sans antialiased`} style={{ background: 'transparent' }}>
+        <body className={`${fontInter.variable} font-sans antialiased`} style={{ background: 'transparent' }}>
           {children}
         </body>
       </html>
@@ -304,12 +311,12 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       {/* Blocking inline script: applies theme class before first paint, eliminating white flash */}
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('themePreference');var sys=window.matchMedia('(prefers-color-scheme: dark)').matches;var dark=(p==='dark')||(p!=='light'&&sys);if(dark){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';document.documentElement.style.background='hsl(0,0%,12%)';}else{document.documentElement.style.colorScheme='light';}}catch(e){}})();` }} />
       </head>
-      <body className={`${sourceSans3.variable} font-sans antialiased`}>
+      <body className={`${fontInter.variable} font-sans antialiased`}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
