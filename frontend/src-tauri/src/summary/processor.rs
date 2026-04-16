@@ -1,4 +1,4 @@
-use crate::summary::llm_client::{generate_summary, generate_structured_summary, LLMProvider, StructuredResponseFormat};
+use crate::summary::llm_client::{generate_summary, generate_structured_summary, LLMProvider};
 use crate::summary::templates;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -278,71 +278,171 @@ fn unescape_json_string(s: &str) -> String {
 pub fn parse_structured_summary(response: &str) -> StructuredSummary {
     let cleaned = clean_llm_response(response);
 
-    // Try direct JSON parsing
-    match serde_json::from_str::<StructuredSummary>(&cleaned) {
-        Ok(summary) => {
-            info!("Successfully parsed structured summary from JSON");
-            summary
-        }
-        Err(e) => {
-            warn!("Structured JSON parse failed, trying best-effort extraction: {}", e);
+    // Try direct JSON parsing first
+    if let Ok(summary) = serde_json::from_str::<StructuredSummary>(&cleaned) {
+        info!("Successfully parsed structured summary from JSON");
+        return summary;
+    }
 
-            // Try best-effort regex extraction
-            let best_effort = best_effort_parse(&cleaned);
+    // Try best-effort JSON regex extraction
+    let best_effort = best_effort_parse(&cleaned);
+    if !best_effort.summary.is_empty()
+        || !best_effort.key_points.is_empty()
+        || !best_effort.action_items.is_empty()
+        || !best_effort.decisions.is_empty()
+    {
+        info!("Best-effort JSON extraction succeeded with partial data");
+        return best_effort;
+    }
 
-            // Check if we got any data
-            if !best_effort.summary.is_empty()
-                || !best_effort.key_points.is_empty()
-                || !best_effort.action_items.is_empty()
-                || !best_effort.decisions.is_empty()
-            {
-                info!("Best-effort extraction succeeded with partial data");
-                best_effort
-            } else {
-                // Fall back to raw text as summary
-                warn!("Best-effort extraction yielded no data, using raw response as summary");
-                StructuredSummary {
-                    summary: response.to_string(),
-                    key_points: vec![],
-                    action_items: vec![],
-                    decisions: vec![],
-                }
+    // Try extracting structured fields from markdown sections
+    let md_result = extract_structured_from_markdown(response);
+    if !md_result.summary.is_empty()
+        || !md_result.key_points.is_empty()
+        || !md_result.action_items.is_empty()
+        || !md_result.decisions.is_empty()
+    {
+        info!("Extracted structured data from markdown sections");
+        return md_result;
+    }
+
+    // Final fallback: raw text as summary
+    warn!("All extraction methods failed, using raw response as summary");
+    StructuredSummary {
+        summary: response.to_string(),
+        key_points: vec![],
+        action_items: vec![],
+        decisions: vec![],
+    }
+}
+
+/// Extract structured summary fields from markdown headings.
+/// Looks for ## Summary, ## Key Points/Discussion Highlights,
+/// ## Action Items, ## Key Decisions sections and pulls content from each.
+fn extract_structured_from_markdown(markdown: &str) -> StructuredSummary {
+    let mut result = StructuredSummary::default();
+
+    // Split into sections by ## headings
+    let mut sections: Vec<(String, String)> = Vec::new();
+    let mut current_heading = String::new();
+    let mut current_content = String::new();
+
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("## ") || trimmed.starts_with("**") && trimmed.ends_with("**") && !trimmed.contains(':') {
+            if !current_heading.is_empty() || !current_content.trim().is_empty() {
+                sections.push((current_heading.clone(), current_content.trim().to_string()));
             }
+            // Normalize heading: strip ## and ** markers
+            current_heading = trimmed
+                .trim_start_matches('#')
+                .trim()
+                .trim_matches('*')
+                .trim()
+                .to_lowercase();
+            current_content = String::new();
+        } else {
+            current_content.push_str(line);
+            current_content.push('\n');
         }
     }
+    // Don't forget the last section
+    if !current_heading.is_empty() {
+        sections.push((current_heading, current_content.trim().to_string()));
+    }
+
+    let mut discussion_highlights: Option<String> = None;
+
+    for (heading, content) in &sections {
+        if content.is_empty() || content == "None noted in this section." {
+            continue;
+        }
+
+        if heading.contains("summary") && !heading.contains("highlight") {
+            result.summary = content.clone();
+        } else if heading.contains("discussion highlight") {
+            // Stash discussion highlights — used as summary fallback if
+            // the explicit summary section is empty/missing.
+            discussion_highlights = Some(content.clone());
+        } else if heading.contains("key point") {
+            result.key_points = extract_bullet_items(content);
+        } else if heading.contains("action item") {
+            result.action_items = extract_bullet_items(content);
+        } else if heading.contains("decision") {
+            result.decisions = extract_bullet_items(content);
+        }
+    }
+
+    // Use discussion highlights as summary when no explicit summary was found
+    if result.summary.is_empty() {
+        if let Some(highlights) = discussion_highlights {
+            result.summary = highlights;
+        }
+    }
+
+    result
+}
+
+/// Extract bullet point items from a markdown section.
+/// Handles lines starting with -, *, •, or numbered lists.
+fn extract_bullet_items(content: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        // Strip bullet markers: -, *, •, or "1." style numbering
+        let text = if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("• ") {
+            trimmed[2..].trim()
+        } else if trimmed.len() > 2 && trimmed.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            // Handle "1. item" or "1) item"
+            if let Some(pos) = trimmed.find(". ") {
+                trimmed[pos + 2..].trim()
+            } else if let Some(pos) = trimmed.find(") ") {
+                trimmed[pos + 2..].trim()
+            } else {
+                continue;
+            }
+        } else {
+            continue;
+        };
+
+        if !text.is_empty() {
+            // Strip markdown bold markers from items
+            let clean = text.replace("**", "");
+            items.push(clean);
+        }
+    }
+    items
 }
 
 /// JSON schema for structured summary response (OpenAI response_format)
 pub fn get_structured_summary_json_schema() -> serde_json::Value {
+    // Returns just the JSON Schema object — the caller (StructuredResponseFormat::json_schema)
+    // wraps it with name/strict/schema envelope for the OpenAI response_format API.
     serde_json::json!({
-        "name": "meeting_summary",
-        "strict": true,
-        "schema": {
-            "type": "object",
-            "properties": {
-                "summary": {
-                    "type": "string",
-                    "description": "2-3 sentence overview of what was discussed"
-                },
-                "key_points": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Key points from the meeting"
-                },
-                "action_items": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Action items with format 'Person: task (timing)'"
-                },
-                "decisions": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Decisions made during the meeting"
-                }
+        "type": "object",
+        "properties": {
+            "summary": {
+                "type": "string",
+                "description": "2-3 sentence overview of what was discussed"
             },
-            "required": ["summary", "key_points", "action_items", "decisions"],
-            "additionalProperties": false
-        }
+            "key_points": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Key points from the meeting"
+            },
+            "action_items": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Action items with format 'Person: task (timing)'"
+            },
+            "decisions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Decisions made during the meeting"
+            }
+        },
+        "required": ["summary", "key_points", "action_items", "decisions"],
+        "additionalProperties": false
     })
 }
 
@@ -604,14 +704,79 @@ pub async fn generate_meeting_summary(
     let final_markdown = clean_llm_markdown_output(&raw_markdown);
 
     info!("Summary generation completed successfully");
-    // Task 1.1 provides full structured parsing in another branch.
-    // Local fallback keeps compatibility for 1.3 wiring until branches merge.
-    let structured_summary = StructuredSummary {
-        summary: final_markdown.clone(),
-        key_points: Vec::new(),
-        action_items: Vec::new(),
-        decisions: Vec::new(),
-    };
+
+    // Extract structured fields from the markdown.
+    // First try markdown section parsing (works for template-based output).
+    let mut structured_summary = extract_structured_from_markdown(&final_markdown);
+
+    // If markdown extraction got nothing useful, try a structured LLM call
+    let has_structured = !structured_summary.key_points.is_empty()
+        || !structured_summary.action_items.is_empty()
+        || !structured_summary.decisions.is_empty();
+
+    // Only attempt structured LLM call for providers that reliably support response_format.
+    // CustomOpenAI endpoints vary widely; Ollama/BuiltInAI don't support it.
+    let supports_structured = matches!(
+        provider,
+        LLMProvider::OpenAI | LLMProvider::Groq | LLMProvider::OpenRouter | LLMProvider::CustomOpenAI
+    );
+
+    if !has_structured && supports_structured {
+        info!("Markdown extraction yielded no structured fields, trying structured LLM call");
+
+        let json_schema = get_structured_summary_json_schema();
+        let structured_system = "You are a structured data extractor. Extract the key information from the meeting summary into the specified JSON format. Return ONLY valid JSON.";
+        let structured_user = format!(
+            "{}\n\n{}", get_json_format_instruction(), final_markdown
+        );
+
+        match generate_structured_summary(
+            client,
+            provider,
+            model_name,
+            api_key,
+            structured_system,
+            &structured_user,
+            ollama_endpoint,
+            custom_openai_endpoint,
+            max_tokens,
+            temperature,
+            top_p,
+            app_data_dir,
+            cancellation_token,
+            Some(json_schema),
+        )
+        .await
+        {
+            Ok(structured_response) => {
+                let parsed = parse_structured_summary(&structured_response);
+                if !parsed.key_points.is_empty()
+                    || !parsed.action_items.is_empty()
+                    || !parsed.decisions.is_empty()
+                {
+                    structured_summary = parsed;
+                    info!("Structured LLM call succeeded");
+                } else {
+                    warn!("Structured LLM call returned no usable fields");
+                }
+            }
+            Err(e) => {
+                warn!("Structured LLM call failed, using markdown extraction: {}", e);
+            }
+        }
+    }
+
+    // Only fall back to full markdown when NO structured fields were extracted.
+    // If we have key_points/action_items/decisions but summary is empty, leave
+    // summary empty rather than dumping the entire markdown blob into it (which
+    // causes duplication in the UI where structured fields render separately).
+    if structured_summary.summary.is_empty()
+        && structured_summary.key_points.is_empty()
+        && structured_summary.action_items.is_empty()
+        && structured_summary.decisions.is_empty()
+    {
+        structured_summary.summary = final_markdown.clone();
+    }
 
     Ok((final_markdown, structured_summary, successful_chunk_count))
 }

@@ -15,6 +15,7 @@ pub const DETAILED_DISCUSSION: &str = include_str!("../../../templates/detailed_
 /// Registry of all built-in templates
 ///
 /// Maps template identifiers to their embedded JSON content
+#[allow(dead_code)]
 pub fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
     vec![
         ("daily_standup", DAILY_STANDUP),

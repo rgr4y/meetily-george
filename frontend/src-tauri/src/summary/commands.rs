@@ -1,7 +1,6 @@
 use crate::database::repositories::{
     meeting::MeetingsRepository, summary::SummaryProcessesRepository,
     transcript_chunk::TranscriptChunksRepository,
-    transcript::TranscriptsRepository,
 };
 use crate::state::AppState;
 use crate::summary::service::SummaryService;
@@ -293,7 +292,7 @@ pub async fn api_get_structured_summary<R: Runtime>(
 ) -> Result<StructuredSummaryResponse, String> {
     let pool = state.db_manager.pool();
 
-    let row = TranscriptsRepository::get_structured_summary(pool, &meeting_id)
+    let row = SummaryProcessesRepository::get_structured_fields(pool, &meeting_id)
         .await
         .map_err(|e| format!("Failed to fetch structured summary: {}", e))?;
 
@@ -323,9 +322,39 @@ pub async fn api_get_structured_summary<R: Runtime>(
         .unwrap_or_default();
 
     Ok(StructuredSummaryResponse {
-        summary: row.summary.unwrap_or_default(),
+        summary: row.summary_text.unwrap_or_default(),
         key_points,
         action_items,
         decisions,
     })
+}
+
+/// Saves user-edited structured summary fields
+#[tauri::command]
+pub async fn api_save_structured_summary<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    summary_text: Option<String>,
+    key_points: Vec<String>,
+    action_items: Vec<String>,
+    decisions: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let pool = state.db_manager.pool();
+
+    SummaryProcessesRepository::save_structured_fields(
+        pool,
+        &meeting_id,
+        summary_text.as_deref(),
+        &key_points,
+        &action_items,
+        &decisions,
+    )
+    .await
+    .map_err(|e| format!("Failed to save structured summary: {}", e))?;
+
+    log_info!("Structured summary saved for meeting_id: {}", meeting_id);
+    Ok(serde_json::json!({
+        "message": "Structured summary saved successfully"
+    }))
 }

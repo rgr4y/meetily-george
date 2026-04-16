@@ -274,6 +274,7 @@ pub async fn generate_summary(
             max_tokens: max_tokens_val,
             temperature: temperature_val,
             top_p: top_p_val,
+            response_format: None,
         })
     } else {
         serde_json::json!(ClaudeRequest {

@@ -1,6 +1,5 @@
 use crate::database::repositories::{
     meeting::MeetingsRepository, setting::SettingsRepository, summary::SummaryProcessesRepository,
-    transcript::TranscriptsRepository,
 };
 use crate::summary::llm_client::LLMProvider;
 use crate::summary::processor::{
@@ -303,20 +302,10 @@ impl SummaryService {
                     "markdown": final_markdown,
                 });
 
-                let key_points_json =
-                    serde_json::to_string(&structured_summary.key_points).unwrap_or_else(|_| "[]".to_string());
-                let action_items_json =
-                    serde_json::to_string(&structured_summary.action_items).unwrap_or_else(|_| "[]".to_string());
-                let decisions_json =
-                    serde_json::to_string(&structured_summary.decisions).unwrap_or_else(|_| "[]".to_string());
-
                 if let Err(e) = Self::save_structured_summary_fields(
                     &pool,
                     &meeting_id,
                     &structured_summary,
-                    &key_points_json,
-                    &action_items_json,
-                    &decisions_json,
                 )
                 .await
                 {
@@ -386,18 +375,16 @@ impl SummaryService {
         pool: &SqlitePool,
         meeting_id: &str,
         structured_summary: &StructuredSummary,
-        key_points_json: &str,
-        action_items_json: &str,
-        decisions_json: &str,
     ) -> Result<(), sqlx::Error> {
-        TranscriptsRepository::save_structured_summary(
+        SummaryProcessesRepository::save_structured_fields(
             pool,
             meeting_id,
-            &structured_summary.summary,
-            key_points_json,
-            action_items_json,
-            decisions_json,
+            Some(structured_summary.summary.as_str()),
+            &structured_summary.key_points,
+            &structured_summary.action_items,
+            &structured_summary.decisions,
         )
-        .await
+        .await?;
+        Ok(())
     }
 }
