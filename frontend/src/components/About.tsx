@@ -8,10 +8,12 @@ import { updateService, UpdateInfo } from '@/services/updateService';
 import { Button } from './ui/button';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { isDev } from '@/lib/env';
 
 
 export function About() {
     const [currentVersion, setCurrentVersion] = useState<string>('0.3.0');
+    const [gitHash, setGitHash] = useState<string | null>(null);
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
     const [isChecking, setIsChecking] = useState(false);
     const [showUpdateDialog, setShowUpdateDialog] = useState(false);
@@ -19,6 +21,13 @@ export function About() {
     useEffect(() => {
         // Get current version on mount
         getVersion().then(setCurrentVersion).catch(console.error);
+        
+        // Get git hash if in dev mode
+        if (isDev) {
+            invoke('get_git_hash')
+                .then((hash) => setGitHash(hash as string))
+                .catch(console.error);
+        }
     }, []);
 
     const handleContactClick = async () => {
@@ -61,7 +70,14 @@ export function About() {
                     />
                 </div>
                 {/* <h1 className="text-xl font-bold text-gray-900">Meetily</h1> */}
-                <span className="text-sm text-muted-foreground"> v{currentVersion}</span>
+                <div className="flex items-center justify-center gap-2">
+                    <span className="text-sm text-muted-foreground"> v{currentVersion}</span>
+                    {isDev && gitHash && (
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded font-mono">
+                            {gitHash}
+                        </span>
+                    )}
+                </div>
                 <p className="text-medium text-muted-foreground mt-1">
                     Real-time notes and summaries that never leave your machine.
                 </p>

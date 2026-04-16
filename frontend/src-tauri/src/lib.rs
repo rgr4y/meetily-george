@@ -392,6 +392,24 @@ pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
 }
 
+#[tauri::command]
+fn get_git_hash() -> Result<String, String> {
+    // Try to get the git hash from the current repository
+    match std::process::Command::new("git")
+        .args(&["rev-parse", "--short", "HEAD"])
+        .current_dir(std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")))
+        .output() {
+        Ok(output) => {
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+            } else {
+                Err("Failed to get git hash".to_string())
+            }
+        }
+        Err(_) => Err("Git not found".to_string())
+    }
+}
+
 pub fn run() {
     log::set_max_level(log::LevelFilter::Info);
 
@@ -703,6 +721,8 @@ pub fn run() {
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,
+            // Version commands
+            get_git_hash,
             // Meeting detection commands
             meeting_detector::set_meeting_detection_enabled,
             meeting_detector::get_meeting_detection_enabled,
