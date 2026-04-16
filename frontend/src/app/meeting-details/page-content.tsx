@@ -172,14 +172,14 @@ export default function PageContent({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="flex flex-col h-screen bg-background"
+      className="flex flex-col h-full bg-background overflow-hidden"
     >
-      <Group orientation="horizontal" className="flex flex-1 overflow-hidden">
-        <Panel defaultSize={50} minSize={20} maxSize={80}>
-          <TranscriptPanel
+      <Group orientation="horizontal" className="flex-1 overflow-hidden">
+          <Panel defaultSize="50%" minSize="35%" maxSize="80%">
+            <TranscriptPanel
             transcripts={meetingData.transcripts}
             customPrompt={customPrompt}
             onPromptChange={setCustomPrompt}
@@ -202,7 +202,7 @@ export default function PageContent({
           />
         </Panel>
         <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors cursor-col-resize" />
-        <Panel defaultSize={50} minSize={20} maxSize={80}>
+        <Panel defaultSize="50%" minSize="35%" maxSize="80%">
           <SummaryPanel
             meeting={meeting}
             meetingTitle={meetingData.meetingTitle}

@@ -65,7 +65,7 @@ export function TranscriptPanel({
   }, [transcripts, usePagination, segments]);
 
   return (
-    <div className="hidden md:flex md:w-1/4 lg:w-1/3 min-w-0 border-r border-border bg-background flex-col relative shrink-0">
+    <div className="flex min-w-0 w-full h-full bg-background flex-col relative">
       {/* Title area */}
       <div className="p-4 border-b border-border">
         <TranscriptButtonGroup

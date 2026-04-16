@@ -96,6 +96,15 @@ export default function RootLayout({
       return
     }
 
+    // Allow bypassing onboarding with ?skip-onboarding query param (dev/testing only)
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('skip-onboarding')) {
+      console.log('[Layout] Onboarding bypassed via ?skip-onboarding query param')
+      setOnboardingCompleted(true)
+      setShowOnboarding(false)
+      setOnboardingCheckDone(true)
+      return
+    }
+
     let cancelled = false
 
     const checkOnboarding = async () => {
@@ -317,12 +326,12 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="overflow-hidden h-full">
       {/* Blocking inline script: applies theme class before first paint, eliminating white flash */}
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var p=localStorage.getItem('themePreference');var sys=window.matchMedia('(prefers-color-scheme: dark)').matches;var dark=(p==='dark')||(p!=='light'&&sys);if(dark){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';document.documentElement.style.background='hsl(0,0%,12%)';}else{document.documentElement.style.colorScheme='light';}}catch(e){}})();` }} />
       </head>
-      <body className={`${fontInter.variable} font-sans antialiased`}>
+      <body className={`${fontInter.variable} font-sans antialiased overflow-hidden h-full`}>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
@@ -349,7 +358,7 @@ export default function RootLayout({
                               ) : showOnboarding ? (
                                 <OnboardingFlow onComplete={handleOnboardingComplete} />
                               ) : (
-                                <div className="flex">
+                                <div className="flex h-screen overflow-hidden">
                                   <Sidebar />
                                   <MainContent>{children}</MainContent>
                                 </div>
