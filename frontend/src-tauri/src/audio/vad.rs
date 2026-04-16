@@ -4,6 +4,40 @@ use silero_rs::{VadConfig, VadSession, VadTransition};
 use std::collections::VecDeque;
 use std::time::Duration;
 
+// ---------------------------------------------------------------------------
+// VAD tuning constants — adjust these to change segmentation behaviour
+// ---------------------------------------------------------------------------
+
+/// Silero VAD processing sample rate (hardcoded requirement).
+const VAD_SAMPLE_RATE: u32 = 16000;
+
+/// Probability threshold to enter speech state (Silero default: 0.50).
+const VAD_POSITIVE_SPEECH_THRESHOLD: f32 = 0.50;
+
+/// Probability threshold to exit speech state (Silero default: 0.35).
+const VAD_NEGATIVE_SPEECH_THRESHOLD: f32 = 0.35;
+
+/// How long silence is tolerated before ending a segment (live pipeline).
+/// The pipeline passes its own value at construction time; this is the
+/// default used by `ContinuousVadProcessor::new`.
+pub const VAD_DEFAULT_REDEMPTION_TIME_MS: u32 = 400;
+
+/// Audio prepended before detected speech start.
+const VAD_PRE_SPEECH_PAD_MS: u64 = 300;
+
+/// Audio appended after detected speech end.
+const VAD_POST_SPEECH_PAD_MS: u64 = 400;
+
+/// Minimum segment duration — shorter segments are discarded.
+/// Whisper requires at least ~100 ms; 250 ms gives headroom.
+const VAD_MIN_SPEECH_TIME_MS: u64 = 250;
+
+/// Default maximum continuous-speech duration before a force-split (seconds).
+/// Keeps transcription latency bounded when the speaker never pauses.
+const VAD_DEFAULT_MAX_SPEECH_DURATION_SEC: usize = 10;
+
+// ---------------------------------------------------------------------------
+
 /// Represents a complete speech segment detected by VAD
 #[derive(Debug, Clone)]
 pub struct SpeechSegment {
@@ -40,7 +74,7 @@ pub struct ContinuousVadProcessor {
 
 impl ContinuousVadProcessor {
     pub fn new(input_sample_rate: u32, redemption_time_ms: u32) -> Result<Self> {
-        Self::with_max_speech_duration(input_sample_rate, redemption_time_ms, 10)
+        Self::with_max_speech_duration(input_sample_rate, redemption_time_ms, VAD_DEFAULT_MAX_SPEECH_DURATION_SEC)
     }
 
     pub fn with_max_speech_duration(
@@ -49,32 +83,17 @@ impl ContinuousVadProcessor {
         max_speech_duration_sec: usize,
     ) -> Result<Self> {
         // Silero VAD MUST use 16kHz - this is hardcoded requirement
-        const VAD_SAMPLE_RATE: u32 = 16000;
-
-        // Use STRICT settings to prevent silence from reaching Whisper
         let mut config = VadConfig::default();
         config.sample_rate = VAD_SAMPLE_RATE as usize;
-
-        // CONTINUOUS SPEECH FIX: Tuned for capturing complete 5+ second utterances
-        // Previous: 0.55/0.40 with 400ms redemption was fragmenting speech into 40ms segments
-        // New: More lenient thresholds + longer redemption for continuous speech
-        config.positive_speech_threshold = 0.50; // Silero default - good for continuous speech
-        config.negative_speech_threshold = 0.35; // Silero default - allows natural pauses
-
-        // CRITICAL FIX: Removed redemption_time capping to support long continuous speech
-        // Previous: capped at 400ms, causing VAD to fragment 5-second speech into 40ms segments
-        // New: Use full redemption_time from pipeline (2000ms) to bridge natural pauses
+        config.positive_speech_threshold = VAD_POSITIVE_SPEECH_THRESHOLD;
+        config.negative_speech_threshold = VAD_NEGATIVE_SPEECH_THRESHOLD;
         config.redemption_time = Duration::from_millis(redemption_time_ms as u64);
-        config.pre_speech_pad = Duration::from_millis(300); // Pre-speech padding for context
-        config.post_speech_pad = Duration::from_millis(400); // Increased: more context at end
-
-        // CRITICAL FIX: Increased min_speech_time to prevent tiny 40ms fragments
-        // Previous: 100ms allowed too-short segments that Whisper rejects
-        // New: 250ms ensures segments are substantial enough for Whisper (>100ms requirement)
-        config.min_speech_time = Duration::from_millis(250); // Prevent tiny fragments
+        config.pre_speech_pad = Duration::from_millis(VAD_PRE_SPEECH_PAD_MS);
+        config.post_speech_pad = Duration::from_millis(VAD_POST_SPEECH_PAD_MS);
+        config.min_speech_time = Duration::from_millis(VAD_MIN_SPEECH_TIME_MS);
 
         debug!("Creating VAD session with: sample_rate={}Hz, redemption={}ms, min_speech={}ms, input_rate={}Hz",
-               VAD_SAMPLE_RATE, redemption_time_ms, 250, input_sample_rate);
+               VAD_SAMPLE_RATE, redemption_time_ms, VAD_MIN_SPEECH_TIME_MS, input_sample_rate);
 
         let session = VadSession::new(config)
             .map_err(|e| anyhow!("Failed to create VAD session: {:?}", e))?;
@@ -88,7 +107,7 @@ impl ContinuousVadProcessor {
         );
 
         // Force-split long continuous speech to keep transcription latency bounded.
-        let max_speech_samples = max_speech_duration_sec * 16000;
+        let max_speech_samples = max_speech_duration_sec * VAD_SAMPLE_RATE as usize;
 
         info!(
             "VAD processor: max_speech_duration={}s ({} samples at 16kHz)",
