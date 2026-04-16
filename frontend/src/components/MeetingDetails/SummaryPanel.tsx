@@ -118,65 +118,12 @@ export function SummaryPanel({
   const shouldUseStructuredView = hasStructuredArrays;
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-background overflow-hidden">
+    <div className="min-w-0 w-full h-full flex flex-col bg-background overflow-hidden">
       {/* Title area */}
       <div className="p-4 border-b border-border">
-        {/* <EditableTitle
-          title={meetingTitle}
-          isEditing={isEditingTitle}
-          onStartEditing={onStartEditTitle}
-          onFinishEditing={onFinishEditTitle}
-          onChange={onTitleChange}
-        /> */}
-
-        {/* Button groups - only show when summary exists */}
-        {hasSummaryContent && !isSummaryLoading && (
-          <div className="flex items-center justify-center w-full pt-0 gap-2">
-            {/* Left-aligned: Summary Generator Button Group */}
-            <div className="flex-shrink-0">
-              <SummaryGeneratorButtonGroup
-                modelConfig={modelConfig}
-                setModelConfig={setModelConfig}
-                onSaveModelConfig={onSaveModelConfig}
-                onGenerateSummary={onGenerateSummary}
-                onStopGeneration={onStopGeneration}
-                customPrompt={customPrompt}
-                summaryStatus={summaryStatus}
-                availableTemplates={availableTemplates}
-                selectedTemplate={selectedTemplate}
-                onTemplateSelect={onTemplateSelect}
-                onFetchTemplateDetails={onFetchTemplateDetails}
-                onSaveTemplate={onSaveTemplate}
-                onDeleteTemplate={onDeleteTemplate}
-                hasTranscripts={transcripts.length > 0}
-                isModelConfigLoading={isModelConfigLoading}
-                onOpenModelSettings={onOpenModelSettings}
-              />
-            </div>
-
-            {/* Right-aligned: Summary Updater Button Group */}
-            <div className="flex-shrink-0">
-              <SummaryUpdaterButtonGroup
-                isSaving={isSaving}
-                isDirty={isTitleDirty || (summaryRef.current?.isDirty || false)}
-                onSave={onSaveAll}
-                onCopy={onCopySummary}
-                onFind={() => {
-                  // TODO: Implement find in summary functionality
-                  console.log('Find in summary clicked');
-                }}
-                onOpenFolder={onOpenFolder}
-                hasSummary={hasSummaryContent}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {isSummaryLoading ? (
-        <div className="flex flex-col h-full">
-          {/* Show button group during generation */}
-          <div className="flex items-center justify-center pt-8 pb-4">
+        <div className="flex items-center justify-center w-full pt-0 gap-2">
+          {/* Left-aligned: Summary Generator Button Group */}
+          <div className="flex-shrink-0">
             <SummaryGeneratorButtonGroup
               modelConfig={modelConfig}
               setModelConfig={setModelConfig}
@@ -196,6 +143,28 @@ export function SummaryPanel({
               onOpenModelSettings={onOpenModelSettings}
             />
           </div>
+
+          {/* Right-aligned: Summary Updater Button Group */}
+          {hasSummaryContent && !isSummaryLoading && (
+            <div className="flex-shrink-0">
+              <SummaryUpdaterButtonGroup
+                isSaving={isSaving}
+                isDirty={isTitleDirty || (summaryRef.current?.isDirty || false)}
+                onSave={onSaveAll}
+                onCopy={onCopySummary}
+                onFind={() => {
+                  console.log('Find in summary clicked');
+                }}
+                onOpenFolder={onOpenFolder}
+                hasSummary={hasSummaryContent}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isSummaryLoading ? (
+        <div className="flex flex-col h-full">
           {/* Loading spinner */}
           <div className="flex items-center justify-center flex-1">
             <div className="text-center">
@@ -206,28 +175,6 @@ export function SummaryPanel({
         </div>
       ) : !hasSummaryContent ? (
         <div className="flex flex-col h-full">
-          {/* Centered Summary Generator Button Group when no summary */}
-          <div className="flex items-center justify-center pt-8 pb-4">
-            <SummaryGeneratorButtonGroup
-              modelConfig={modelConfig}
-              setModelConfig={setModelConfig}
-              onSaveModelConfig={onSaveModelConfig}
-              onGenerateSummary={onGenerateSummary}
-              onStopGeneration={onStopGeneration}
-              customPrompt={customPrompt}
-              summaryStatus={summaryStatus}
-              availableTemplates={availableTemplates}
-              selectedTemplate={selectedTemplate}
-              onTemplateSelect={onTemplateSelect}
-              onFetchTemplateDetails={onFetchTemplateDetails}
-              onSaveTemplate={onSaveTemplate}
-              onDeleteTemplate={onDeleteTemplate}
-              hasTranscripts={transcripts.length > 0}
-              isModelConfigLoading={isModelConfigLoading}
-              onOpenModelSettings={onOpenModelSettings}
-            />
-          </div>
-          {/* Empty state message */}
           <EmptyStateSummary
             onGenerate={() => onGenerateSummary(customPrompt)}
             hasModel={modelConfig.provider !== null && modelConfig.model !== null}
