@@ -45,6 +45,8 @@ struct qwen3_asr_params qwen3_asr_default_params(void) {
     params.use_gpu = true;
     params.gpu_device = 0;
     params.temperature = 0.0f;  // greedy decoding
+    params.language = nullptr;
+    params.log_prompt = false;
     return params;
 }
 
@@ -125,6 +127,10 @@ struct qwen3_asr_result qwen3_asr_transcribe(
     tp.n_threads = params.n_threads > 0 ? params.n_threads : 4;
     tp.print_progress = false;
     tp.print_timing = false;
+    if (params.language) {
+        tp.language = params.language;
+    }
+    tp.log_prompt = params.log_prompt;
 
     auto res = ctx->model->transcribe(samples, n_samples, tp);
     result.text = strdup_safe(res.text);
@@ -135,6 +141,9 @@ struct qwen3_asr_result qwen3_asr_transcribe(
     float duration_sec = (float)n_samples / 16000.0f;
     std::string stub_text = "[Qwen3-ASR stub: " + std::to_string(n_samples) +
                            " samples, " + std::to_string(duration_sec) + "s audio]";
+    if (params.language) {
+        stub_text += " (language=" + std::string(params.language) + ")";
+    }
     result.text = strdup_safe(stub_text);
     result.n_tokens = 1;
     result.success = true;
@@ -173,6 +182,10 @@ struct qwen3_asr_result qwen3_asr_transcribe_streaming(
     tp.n_threads = params.n_threads > 0 ? params.n_threads : 4;
     tp.print_progress = false;
     tp.print_timing = false;
+    if (params.language) {
+        tp.language = params.language;
+    }
+    tp.log_prompt = params.log_prompt;
 
     auto res = ctx->model->transcribe(samples, n_samples, tp);
     if (res.success && callback) {
@@ -194,6 +207,10 @@ struct qwen3_asr_result qwen3_asr_transcribe_streaming(
         }
         full_text += stub_tokens[i];
         result.n_tokens++;
+    }
+
+    if (params.language) {
+        full_text += " (language=" + std::string(params.language) + ")";
     }
 
     result.text = strdup_safe(full_text);

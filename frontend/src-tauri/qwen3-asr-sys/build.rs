@@ -8,15 +8,17 @@
 // Without vendor: compiles only the stub C wrapper.
 
 fn main() {
+    let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+
     println!("cargo:rerun-if-changed=qwen3_asr_c.cpp");
     println!("cargo:rerun-if-changed=qwen3_asr_c.h");
 
-    let vendor_dir = std::path::Path::new("vendor/qwen3-asr.cpp");
+    let vendor_dir = manifest_dir.join("vendor/qwen3-asr.cpp");
     let has_vendor = vendor_dir.join("CMakeLists.txt").exists();
 
     if has_vendor {
         println!("cargo:warning=Building with qwen3-asr.cpp vendor library");
-        build_with_vendor(vendor_dir);
+        build_with_vendor(&vendor_dir);
     } else {
         println!("cargo:warning=Building qwen3-asr-sys WITHOUT vendor library (stub mode)");
         println!("cargo:warning=To enable full functionality, populate vendor/qwen3-asr.cpp");

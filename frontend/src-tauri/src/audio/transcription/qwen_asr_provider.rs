@@ -74,12 +74,7 @@ impl TranscriptionProvider for QwenAsrProvider {
         audio: Vec<f32>,
         language: Option<String>,
     ) -> std::result::Result<TranscriptResult, TranscriptionError> {
-        // Qwen3-ASR supports multilingual transcription natively
-        if let Some(ref lang) = language {
-            log::debug!("Qwen3-ASR transcribing with language hint: {}", lang);
-        }
-
-        match self.engine.transcribe_audio(audio).await {
+        match self.engine.transcribe_audio(audio, language).await {
             Ok(text) => Ok(TranscriptResult {
                 text: clean_qwen_asr_output(&text),
                 confidence: None, // Qwen3-ASR doesn't provide confidence scores

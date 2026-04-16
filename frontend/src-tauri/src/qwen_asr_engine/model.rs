@@ -59,9 +59,28 @@ impl QwenAsrModel {
     /// Transcribe audio samples (batch mode).
     ///
     /// Expects 16kHz mono f32 PCM audio.
-    pub fn transcribe(&self, samples: &[f32]) -> Result<String, String> {
+    pub fn transcribe(&self, samples: &[f32], language: Option<&str>) -> Result<String, String> {
         unsafe {
-            let params = qwen3_asr_sys::qwen3_asr_default_params();
+            let mut params = qwen3_asr_sys::qwen3_asr_default_params();
+            let should_log_prompt = crate::qwen_asr_engine::qwen_prompt_logging_enabled();
+            let language_cstr = match language {
+                Some(value) => Some(
+                    CString::new(value)
+                        .map_err(|e| format!("Invalid language hint '{}': {}", value, e))?,
+                ),
+                None => None,
+            };
+            params.language = language_cstr
+                .as_ref()
+                .map_or(std::ptr::null(), |value| value.as_ptr());
+            params.log_prompt = should_log_prompt;
+
+            if should_log_prompt {
+                log::info!(
+                    "Qwen3-ASR prompt preview:\n{}",
+                    crate::qwen_asr_engine::format_qwen_prompt_preview(language, samples.len())
+                );
+            }
 
             let result = qwen3_asr_sys::qwen3_asr_transcribe(
                 self.ctx,
@@ -99,13 +118,33 @@ impl QwenAsrModel {
     pub fn transcribe_streaming<F>(
         &self,
         samples: &[f32],
+        language: Option<&str>,
         on_token: F,
     ) -> Result<String, String>
     where
         F: FnMut(&str) -> bool,
     {
         unsafe {
-            let params = qwen3_asr_sys::qwen3_asr_default_params();
+            let mut params = qwen3_asr_sys::qwen3_asr_default_params();
+            let should_log_prompt = crate::qwen_asr_engine::qwen_prompt_logging_enabled();
+            let language_cstr = match language {
+                Some(value) => Some(
+                    CString::new(value)
+                        .map_err(|e| format!("Invalid language hint '{}': {}", value, e))?,
+                ),
+                None => None,
+            };
+            params.language = language_cstr
+                .as_ref()
+                .map_or(std::ptr::null(), |value| value.as_ptr());
+            params.log_prompt = should_log_prompt;
+
+            if should_log_prompt {
+                log::info!(
+                    "Qwen3-ASR prompt preview (streaming):\n{}",
+                    crate::qwen_asr_engine::format_qwen_prompt_preview(language, samples.len())
+                );
+            }
 
             // Box the closure so we can pass a raw pointer to C
             let mut callback_box: Box<dyn FnMut(&str) -> bool> = Box::new(on_token);

@@ -31,6 +31,10 @@ pub struct qwen3_asr_params {
     pub gpu_device: i32,
     /// Sampling temperature (0.0 = greedy decoding)
     pub temperature: c_float,
+    /// Optional language hint used to condition the prompt
+    pub language: *const c_char,
+    /// Emit the formatted prompt preview to the native layer logs
+    pub log_prompt: bool,
 }
 
 /// Transcription result.
@@ -114,6 +118,8 @@ mod tests {
             assert!(params.use_gpu);
             assert_eq!(params.gpu_device, 0);
             assert_eq!(params.temperature, 0.0);
+            assert!(params.language.is_null());
+            assert!(!params.log_prompt);
         }
     }
 

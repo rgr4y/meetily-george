@@ -354,21 +354,23 @@ impl QwenAsrEngine {
     }
 
     /// Transcribe audio samples using the loaded model (batch mode)
-    pub async fn transcribe_audio(&self, audio_data: Vec<f32>) -> Result<String> {
+    pub async fn transcribe_audio(&self, audio_data: Vec<f32>, language: Option<String>) -> Result<String> {
         let mut model_guard = self.current_model.write().await;
         let model = model_guard
             .as_mut()
             .ok_or_else(|| anyhow!("No Qwen ASR model loaded. Please load a model first."))?;
+        let language_hint = crate::qwen_asr_engine::normalize_language_hint(language.as_deref());
 
         let duration_seconds = audio_data.len() as f64 / 16000.0;
         log::debug!(
-            "Qwen ASR transcribing {} samples ({:.1}s duration)",
+            "Qwen ASR transcribing {} samples ({:.1}s duration, language hint: {:?})",
             audio_data.len(),
-            duration_seconds
+            duration_seconds,
+            language_hint
         );
 
         let result = model
-            .transcribe(&audio_data)
+            .transcribe(&audio_data, language_hint.as_deref())
             .map_err(|e| anyhow!("Qwen ASR transcription failed: {}", e))?;
 
         log::debug!("Qwen ASR transcription result: '{}'", result);
@@ -379,6 +381,7 @@ impl QwenAsrEngine {
     pub async fn transcribe_audio_streaming<F>(
         &self,
         audio_data: Vec<f32>,
+        language: Option<String>,
         on_token: F,
     ) -> Result<String>
     where
@@ -388,9 +391,10 @@ impl QwenAsrEngine {
         let model = model_guard
             .as_mut()
             .ok_or_else(|| anyhow!("No Qwen ASR model loaded."))?;
+        let language_hint = crate::qwen_asr_engine::normalize_language_hint(language.as_deref());
 
         let result = model
-            .transcribe_streaming(&audio_data, on_token)
+            .transcribe_streaming(&audio_data, language_hint.as_deref(), on_token)
             .map_err(|e| anyhow!("Qwen ASR streaming transcription failed: {}", e))?;
 
         Ok(result)

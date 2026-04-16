@@ -18,6 +18,8 @@ struct qwen3_asr_params {
     bool    use_gpu;       // Enable GPU acceleration
     int32_t gpu_device;    // GPU device index
     float   temperature;   // Sampling temperature (0.0 = greedy)
+    const char* language;  // Optional language hint for prompt conditioning
+    bool    log_prompt;    // Emit formatted prompt preview to native logs
 };
 
 // Transcription result
