@@ -167,7 +167,7 @@ echo ""
 echo -e "${CYAN}Starting complete Tauri application...${NC}"
 echo ""
 
-$PKG_MGR run tauri:dev
+$PKG_MGR run tauri:dev $@
 
 if [ $? -eq 0 ]; then
     echo ""
