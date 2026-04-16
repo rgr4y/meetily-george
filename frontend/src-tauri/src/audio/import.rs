@@ -15,7 +15,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_dialog::DialogExt;
-use uuid::Uuid;
 
 use super::audio_processing::create_meeting_folder;
 use super::common::{create_transcript_segments, split_segment_at_silence, write_transcripts_json};
@@ -686,65 +685,22 @@ fn emit_progress<R: Runtime>(app: &AppHandle<R>, stage: &str, progress: u32, mes
 }
 
 
-/// Create a new meeting with transcripts in the database
+/// Create a new meeting with transcripts in the database.
+/// Delegates to the shared `meeting_io::create_meeting` implementation.
 async fn create_meeting_with_transcripts(
     pool: &sqlx::SqlitePool,
     title: &str,
     segments: &[TranscriptSegment],
     folder_path: String,
 ) -> Result<String> {
-    let meeting_id = format!("meeting-{}", Uuid::new_v4());
-    let now = chrono::Utc::now();
-
-    // Start transaction
-    let mut conn = pool.acquire().await.map_err(|e| anyhow!("DB error: {}", e))?;
-    let mut tx = sqlx::Connection::begin(&mut *conn)
-        .await
-        .map_err(|e| anyhow!("Failed to start transaction: {}", e))?;
-
-    // Insert meeting
-    sqlx::query(
-        "INSERT INTO meetings (id, title, created_at, updated_at, folder_path)
-         VALUES (?, ?, ?, ?, ?)",
+    crate::audio::meeting_io::create_meeting(
+        pool,
+        title,
+        segments,
+        Some(&folder_path),
+        None, // use current time
     )
-    .bind(&meeting_id)
-    .bind(title)
-    .bind(now)
-    .bind(now)
-    .bind(&folder_path)
-    .execute(&mut *tx)
     .await
-    .map_err(|e| anyhow!("Failed to create meeting: {}", e))?;
-
-    // Insert transcripts
-    for segment in segments {
-        sqlx::query(
-            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&segment.id)
-        .bind(&meeting_id)
-        .bind(&segment.text)
-        .bind(&segment.timestamp)
-        .bind(segment.audio_start_time)
-        .bind(segment.audio_end_time)
-        .bind(segment.duration)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| anyhow!("Failed to insert transcript: {}", e))?;
-    }
-
-    tx.commit()
-        .await
-        .map_err(|e| anyhow!("Failed to commit transaction: {}", e))?;
-
-    info!(
-        "Created meeting '{}' with {} transcripts",
-        meeting_id,
-        segments.len()
-    );
-
-    Ok(meeting_id)
 }
 
 /// Get or initialize the Whisper engine

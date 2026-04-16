@@ -11,7 +11,7 @@ use ringbuf::{
     traits::{Consumer, Producer, Split},
     HeapCons, HeapProd, HeapRb,
 };
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
 #[cfg(target_os = "macos")]
 use cidre::{arc, av, cat, cf, core_audio as ca, os};
@@ -55,31 +55,31 @@ struct AudioContext {
 impl CoreAudioCapture {
     /// Create a new Core Audio capture for system audio
     pub fn new() -> Result<Self> {
-        info!("🎙️ CoreAudio: Starting Core Audio capture initialization...");
+        debug!("🎙️ CoreAudio: Starting Core Audio capture initialization...");
 
         // Note: Audio Capture permission (NSAudioCaptureUsageDescription) is required for macOS 14.4+
         // The permission dialog is automatically triggered when creating the Core Audio tap.
         // If permission is denied, the tap will return silence (all zeros).
 
         // Get default output device
-        info!("🎙️ CoreAudio: Getting default output device...");
+        debug!("🎙️ CoreAudio: Getting default output device...");
         let output_device = ca::System::default_output_device()
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to get default output device: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to get default output device: {:?}", e);
                 anyhow::anyhow!("Failed to get default output device: {:?}", e)
             })?;
 
-        info!("✅ CoreAudio: Got default output device");
+        debug!("🔊✅ CoreAudio: Got default output device");
 
         let output_uid = output_device.uid()
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to get device UID: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to get device UID: {:?}", e);
                 anyhow::anyhow!("Failed to get device UID: {:?}", e)
             })?;
 
         // Get device name for better debugging
         let device_name = output_device.name().unwrap_or_else(|_| cf::String::from_str("Unknown"));
-        info!("✅ CoreAudio: Default output device: '{}' (UID: {:?})", device_name, output_uid);
+        debug!("🔊✅ CoreAudio: Default output device: '{}' (UID: {:?})", device_name, output_uid);
 
         // IMPORTANT: We do NOT create a sub_device dictionary here
         // When using a tap, the tap provides all the audio we need
@@ -87,11 +87,11 @@ impl CoreAudioCapture {
 
         // Create process tap with mono global tap, excluding no processes
         // Note: Mono tap is more reliable for system audio capture on macOS
-        info!("🎙️ CoreAudio: Creating process tap (global mono tap)...");
+        debug!("🎙️ CoreAudio: Creating process tap (global mono tap)...");
         let tap_desc = ca::TapDesc::with_mono_global_tap_excluding_processes(&cidre::ns::Array::new());
         let tap = tap_desc.create_process_tap()
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to create process tap: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to create process tap: {:?}", e);
                 anyhow::anyhow!("Failed to create process tap: {:?}", e)
             })?;
 
@@ -101,12 +101,12 @@ impl CoreAudioCapture {
 
         match tap_asbd {
             Ok(asbd) => {
-                info!("✅ CoreAudio: Process tap created - UID: {:?}", tap_uid);
-                info!("📊 CoreAudio: Tap format - sample_rate: {} Hz, channels: {}",
+                debug!("🔊✅ CoreAudio: Process tap created - UID: {:?}", tap_uid);
+                debug!("🔊📊 CoreAudio: Tap format - sample_rate: {} Hz, channels: {}",
                       asbd.sample_rate, asbd.channels_per_frame);
             }
             Err(e) => {
-                warn!("⚠️ CoreAudio: Tap created but couldn't get format info: {:?}", e);
+                warn!("🔊⚠️ CoreAudio: Tap created but couldn't get format info: {:?}", e);
             }
         }
 
@@ -144,8 +144,8 @@ impl CoreAudioCapture {
             ],
         );
 
-        info!("✅ CoreAudio: Aggregate device descriptor created");
-        info!("✅ CoreAudio: Core Audio capture initialized successfully!");
+        debug!("🔊✅ CoreAudio: Aggregate device descriptor created");
+        info!("🔊✅ CoreAudio: Core Audio capture initialized successfully!");
 
         Ok(Self { tap, agg_desc })
     }
@@ -201,61 +201,61 @@ impl CoreAudioCapture {
         }
 
         // Create aggregate device
-        info!("🎙️ CoreAudio: Creating aggregate device...");
+        debug!("🎙️ CoreAudio: Creating aggregate device...");
         let agg_device = ca::AggregateDevice::with_desc(&self.agg_desc)
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to create aggregate device: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to create aggregate device: {:?}", e);
                 anyhow::anyhow!("Failed to create aggregate device: {:?}", e)
             })?;
 
-        info!("✅ CoreAudio: Aggregate device created");
+        debug!("🔊✅ CoreAudio: Aggregate device created");
 
         // Create IO proc ID for audio processing
-        info!("🎙️ CoreAudio: Creating IO proc...");
+        debug!("🎙️ CoreAudio: Creating IO proc...");
         let proc_id = agg_device.create_io_proc_id(audio_proc, Some(ctx))
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to create IO proc: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to create IO proc: {:?}", e);
                 anyhow::anyhow!("Failed to create IO proc: {:?}", e)
             })?;
 
-        info!("✅ CoreAudio: IO proc created with ID: {:?}", proc_id);
+        debug!("🔊 CoreAudio: IO proc created with ID: {:?}", proc_id);
 
         // Start the device
-        info!("🎙️ CoreAudio: Starting audio device...");
+        debug!("🎙️ CoreAudio: Starting audio device...");
         let started_device = ca::device_start(agg_device, Some(proc_id))
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to start device: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to start device: {:?}", e);
                 anyhow::anyhow!("Failed to start device: {:?}", e)
             })?;
 
-        info!("✅ CoreAudio: Audio device started successfully!");
+        info!("🔊✅ CoreAudio: Audio device started successfully!");
 
         // Get device sample rate
         let device_ref = started_device.as_ref();
         let sample_rate = device_ref.nominal_sample_rate().unwrap_or(0.0);
-        info!("📊 CoreAudio: Aggregate device sample_rate: {} Hz", sample_rate);
+        debug!("🔊📊 CoreAudio: Aggregate device sample_rate: {} Hz", sample_rate);
 
         Ok(started_device)
     }
 
     /// Create a stream from this capture
     pub fn stream(self) -> Result<CoreAudioStream> {
-        info!("🎙️ CoreAudio: Creating CoreAudioStream...");
+        debug!("🎙️ CoreAudio: Creating CoreAudioStream...");
 
         // Get tap audio format
         let asbd = self.tap.asbd()
             .map_err(|e| {
-                error!("❌ CoreAudio: Failed to get tap ASBD: {:?}", e);
+                error!("🔊❌ CoreAudio: Failed to get tap ASBD: {:?}", e);
                 anyhow::anyhow!("Failed to get tap ASBD: {:?}", e)
             })?;
 
         let format = av::AudioFormat::with_asbd(&asbd)
             .ok_or_else(|| {
-                error!("❌ CoreAudio: Failed to create audio format");
+                error!("🔊❌ CoreAudio: Failed to create audio format");
                 anyhow::anyhow!("Failed to create audio format")
             })?;
 
-        info!("✅ CoreAudio: Tap audio format: {} Hz, {} channels", asbd.sample_rate, asbd.channels_per_frame);
+        debug!("🔊✅ CoreAudio: Tap audio format: {} Hz, {} channels", asbd.sample_rate, asbd.channels_per_frame);
 
         // Create ring buffer for lock-free audio transfer
         let buffer_size = 1024 * 128; // 128KB buffer
@@ -268,7 +268,7 @@ impl CoreAudioCapture {
         }));
 
         let current_sample_rate = Arc::new(AtomicU32::new(asbd.sample_rate as u32));
-        info!("✅ CoreAudio: Initial sample rate: {} Hz", asbd.sample_rate);
+        debug!("🔊✅ CoreAudio: Initial sample rate: {} Hz", asbd.sample_rate);
 
         let mut ctx = Box::new(AudioContext {
             format,
@@ -279,10 +279,10 @@ impl CoreAudioCapture {
             should_terminate: Arc::new(AtomicBool::new(false)),
         });
 
-        info!("🎙️ CoreAudio: Starting audio device...");
+        debug!("🔊🎙️ CoreAudio: Starting audio device...");
         let device = self.start_device(&mut ctx)?;
 
-        info!("✅ CoreAudio: CoreAudioStream created successfully!");
+        info!("🔊✅ CoreAudio: CoreAudioStream created successfully!");
 
         Ok(CoreAudioStream {
             consumer,
@@ -430,7 +430,7 @@ mod tests {
         let capture = CoreAudioCapture::new().expect("Failed to create capture");
         let mut stream = capture.stream().expect("Failed to create stream");
 
-        info!("Stream sample rate: {} Hz", stream.sample_rate());
+        debug!("Stream sample rate: {} Hz", stream.sample_rate());
 
         // Collect some samples
         let mut sample_count = 0;
@@ -440,7 +440,7 @@ mod tests {
             }
         }
 
-        info!("Collected {} samples", sample_count);
+        debug!("Collected {} samples", sample_count);
         assert!(sample_count >= 48000);
     }
 }

@@ -29,7 +29,9 @@ macro_rules! perf_trace {
 }
 
 // Make these macros available to other modules
+#[allow(unused_imports)]
 pub(crate) use perf_debug;
+#[allow(unused_imports)]
 pub(crate) use perf_trace;
 
 // Re-export async logging macros for external use (removed due to macro conflicts)
@@ -670,6 +672,7 @@ pub fn run() {
             summary::api_process_transcript,
             summary::api_get_summary,
             summary::api_get_structured_summary,
+            summary::api_save_structured_summary,
             summary::api_save_meeting_summary,
             summary::api_cancel_summary,
             // Template commands
@@ -774,6 +777,7 @@ pub fn run() {
             audio::import::start_import_audio_command,
             audio::import::cancel_import_command,
             audio::import::is_import_in_progress_command,
+            audio::scanner::scan_recordings_folder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

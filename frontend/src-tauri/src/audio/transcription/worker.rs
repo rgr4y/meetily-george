@@ -638,6 +638,8 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
             }
         }
         TranscriptionEngine::QwenAsr(qwen_engine) => {
+            let language = crate::get_language_preference_internal();
+
             // Emit streaming partial updates via a separate event channel so they
             // don't interfere with the sequence_id-based ordering of final transcripts.
             // Partials are keyed by chunk_id; the frontend replaces previous partials
@@ -678,7 +680,7 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
             };
 
             match qwen_engine
-                .transcribe_audio_streaming(speech_samples, on_token)
+                .transcribe_audio_streaming(speech_samples, language, on_token)
                 .await
             {
                 Ok(text) => {

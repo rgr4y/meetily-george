@@ -42,6 +42,9 @@ pub mod transcription;
 // Shared utilities for import and retranscription
 pub(crate) mod common;
 
+// Shared meeting folder I/O and database helpers
+pub mod meeting_io;
+
 // Shared constants
 pub mod constants;
 
@@ -50,6 +53,9 @@ pub mod retranscription;
 
 // Import module (import external audio files as new meetings)
 pub mod import;
+
+// Folder scanner (discover and import meetings from recordings directory)
+pub mod scanner;
 
 pub use devices::{
     default_input_device, default_output_device, get_device_and_config, list_audio_devices,
