@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Summary, SummaryResponse, StructuredSummaryResponse } from '@/types';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import Analytics from '@/lib/analytics';
@@ -176,69 +177,74 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen bg-background"
     >
-      <div className="flex flex-1 overflow-hidden">
-        <TranscriptPanel
-          transcripts={meetingData.transcripts}
-          customPrompt={customPrompt}
-          onPromptChange={setCustomPrompt}
-          onCopyTranscript={copyOperations.handleCopyTranscript}
-          onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
-          isRecording={isRecording}
-          disableAutoScroll={true}
-          // Pagination props for efficient loading
-          usePagination={true}
-          segments={segments}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-          totalCount={totalCount}
-          loadedCount={loadedCount}
-          onLoadMore={onLoadMore}
-          // Retranscription props
-          meetingId={meeting.id}
-          meetingFolderPath={meeting.folder_path}
-          onRefetchTranscripts={onRefetchTranscripts}
-        />
-        <SummaryPanel
-          meeting={meeting}
-          meetingTitle={meetingData.meetingTitle}
-          onTitleChange={meetingData.handleTitleChange}
-          isEditingTitle={meetingData.isEditingTitle}
-          onStartEditTitle={() => meetingData.setIsEditingTitle(true)}
-          onFinishEditTitle={() => meetingData.setIsEditingTitle(false)}
-          isTitleDirty={meetingData.isTitleDirty}
-          summaryRef={meetingData.blockNoteSummaryRef}
-          isSaving={meetingData.isSaving}
-          onSaveAll={meetingData.saveAllChanges}
-          onCopySummary={copyOperations.handleCopySummary}
-          onOpenFolder={meetingOperations.handleOpenMeetingFolder}
-          aiSummary={meetingData.aiSummary}
-          structuredSummary={structuredSummary}
-          summaryMarkdown={summaryMarkdown}
-          summaryStatus={summaryGeneration.summaryStatus}
-          transcripts={meetingData.transcripts}
-          modelConfig={modelConfig}
-          setModelConfig={setModelConfig}
-          onSaveModelConfig={handleSaveModelConfig}
-          onGenerateSummary={summaryGeneration.handleGenerateSummary}
-          onStopGeneration={summaryGeneration.handleStopGeneration}
-          customPrompt={customPrompt}
-          summaryResponse={summaryResponse}
-          onSaveSummary={meetingData.handleSaveSummary}
-          onSummaryChange={meetingData.handleSummaryChange}
-          onDirtyChange={meetingData.setIsSummaryDirty}
-          summaryError={summaryGeneration.summaryError}
-          onRegenerateSummary={summaryGeneration.handleRegenerateSummary}
-          getSummaryStatusMessage={summaryGeneration.getSummaryStatusMessage}
-          availableTemplates={templates.availableTemplates}
-          selectedTemplate={templates.selectedTemplate}
-          onTemplateSelect={templates.handleTemplateSelection}
-          onFetchTemplateDetails={templates.fetchTemplateDetails}
-          onSaveTemplate={templates.saveTemplate}
-          onDeleteTemplate={templates.deleteTemplate}
-          isModelConfigLoading={false}
-          onOpenModelSettings={handleRegisterModalOpen}
-        />
-      </div>
+      <Group orientation="horizontal" className="flex flex-1 overflow-hidden">
+        <Panel defaultSize={50} minSize={20} maxSize={80}>
+          <TranscriptPanel
+            transcripts={meetingData.transcripts}
+            customPrompt={customPrompt}
+            onPromptChange={setCustomPrompt}
+            onCopyTranscript={copyOperations.handleCopyTranscript}
+            onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
+            isRecording={isRecording}
+            disableAutoScroll={true}
+            // Pagination props for efficient loading
+            usePagination={true}
+            segments={segments}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            totalCount={totalCount}
+            loadedCount={loadedCount}
+            onLoadMore={onLoadMore}
+            // Retranscription props
+            meetingId={meeting.id}
+            meetingFolderPath={meeting.folder_path}
+            onRefetchTranscripts={onRefetchTranscripts}
+          />
+        </Panel>
+        <Separator className="w-1 bg-border hover:bg-primary/50 transition-colors cursor-col-resize" />
+        <Panel defaultSize={50} minSize={20} maxSize={80}>
+          <SummaryPanel
+            meeting={meeting}
+            meetingTitle={meetingData.meetingTitle}
+            onTitleChange={meetingData.handleTitleChange}
+            isEditingTitle={meetingData.isEditingTitle}
+            onStartEditTitle={() => meetingData.setIsEditingTitle(true)}
+            onFinishEditTitle={() => meetingData.setIsEditingTitle(false)}
+            isTitleDirty={meetingData.isTitleDirty}
+            summaryRef={meetingData.blockNoteSummaryRef}
+            isSaving={meetingData.isSaving}
+            onSaveAll={meetingData.saveAllChanges}
+            onCopySummary={copyOperations.handleCopySummary}
+            onOpenFolder={meetingOperations.handleOpenMeetingFolder}
+            aiSummary={meetingData.aiSummary}
+            structuredSummary={structuredSummary}
+            summaryMarkdown={summaryMarkdown}
+            summaryStatus={summaryGeneration.summaryStatus}
+            transcripts={meetingData.transcripts}
+            modelConfig={modelConfig}
+            setModelConfig={setModelConfig}
+            onSaveModelConfig={handleSaveModelConfig}
+            onGenerateSummary={summaryGeneration.handleGenerateSummary}
+            onStopGeneration={summaryGeneration.handleStopGeneration}
+            customPrompt={customPrompt}
+            summaryResponse={summaryResponse}
+            onSaveSummary={meetingData.handleSaveSummary}
+            onSummaryChange={meetingData.handleSummaryChange}
+            onDirtyChange={meetingData.setIsSummaryDirty}
+            summaryError={summaryGeneration.summaryError}
+            onRegenerateSummary={summaryGeneration.handleRegenerateSummary}
+            getSummaryStatusMessage={summaryGeneration.getSummaryStatusMessage}
+            availableTemplates={templates.availableTemplates}
+            selectedTemplate={templates.selectedTemplate}
+            onTemplateSelect={templates.handleTemplateSelection}
+            onFetchTemplateDetails={templates.fetchTemplateDetails}
+            onSaveTemplate={templates.saveTemplate}
+            onDeleteTemplate={templates.deleteTemplate}
+            isModelConfigLoading={false}
+            onOpenModelSettings={handleRegisterModalOpen}
+          />
+        </Panel>
+      </Group>
     </motion.div>
   );
 }
