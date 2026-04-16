@@ -52,6 +52,8 @@ export const QWEN_ASR_MODEL_DISPLAY_CONFIG: Record<string, QwenAsrModelDisplayIn
   },
   'qwen3-asr-0.6b-f16': {
       friendlyName: 'Qwen3 ASR 0.6B',
+      icon: '⚡',
+      tagline: 'Multilingual • 0.6B • Full precision',
       ramRequirement: '3-4GB',
   },
 };
