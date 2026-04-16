@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHand
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/shadcn';
 import "@blocknote/shadcn/style.css";
+import ReactJsonView from 'react-json-view';
 import { useTheme } from '@/contexts/ThemeContext';
 import { StructuredSummaryResponse } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
@@ -414,15 +415,21 @@ export const EditableStructuredSummary = forwardRef<EditableStructuredSummaryRef
               </div>
             </AccordionTrigger>
             <AccordionContent className="pt-0 pb-4">
-              <pre className="overflow-auto rounded-lg bg-muted p-3 text-xs text-muted-foreground font-mono whitespace-pre-wrap break-words max-h-96">
-{JSON.stringify({
-  summary: structuredSummary.summary,
-  key_points: structuredSummary.key_points,
-  action_items: structuredSummary.action_items,
-  decisions: structuredSummary.decisions,
-  summaryMarkdown: summaryMarkdown,
-}, null, 2)}
-              </pre>
+              <div className="overflow-auto rounded-lg bg-muted p-3 max-h-96">
+                <ReactJsonView
+                  src={{
+                    summary: structuredSummary.summary,
+                    key_points: structuredSummary.key_points,
+                    action_items: structuredSummary.action_items,
+                    decisions: structuredSummary.decisions,
+                    summaryMarkdown: summaryMarkdown,
+                  }}
+                  theme="monokai"
+                  displayDataTypes={true}
+                  enableClipboard={true}
+                  collapsed={1}
+                />
+              </div>
             </AccordionContent>
           </AccordionItem>
         </Accordion>

@@ -8,6 +8,9 @@ const nextConfig = {
   // Add basePath configuration
   basePath: '',
   assetPrefix: '/',
+  
+  // Enable Turbopack for Next.js 16
+  turbopack: {},
 
   // Add webpack configuration for Tauri
   webpack: (config, { isServer }) => {

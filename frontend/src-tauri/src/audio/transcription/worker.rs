@@ -5,7 +5,7 @@
 use super::engine::TranscriptionEngine;
 use super::provider::TranscriptionError;
 use crate::audio::AudioChunk;
-use log::{error, info, warn};
+use log::{error, info, warn, debug};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -609,7 +609,7 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
                         return Ok((String::new(), None, false));
                     }
 
-                    info!(
+                    debug!(
                         "Parakeet transcription complete for chunk {}: '{}'",
                         chunk.chunk_id, cleaned_text
                     );
